@@ -16,15 +16,15 @@
 class RenderAPI_Metal : public RenderAPI
 {
 public:
-	RenderAPI_Metal();
-	virtual ~RenderAPI_Metal() { }
+    RenderAPI_Metal();
+    virtual ~RenderAPI_Metal() { }
 
-	virtual void ProcessDeviceEvent(UnityGfxDeviceEventType type, IUnityInterfaces* interfaces);
+    virtual void ProcessDeviceEvent(UnityGfxDeviceEventType type, IUnityInterfaces* interfaces);
 
-	virtual bool GetUsesReverseZ() { return true; }
+    virtual bool GetUsesReverseZ() { return true; }
 
-	virtual void* BeginModifyTexture(void* textureHandle, int textureWidth, int textureHeight, int* outRowPitch);
-	virtual void EndModifyTexture(void* textureHandle, int textureWidth, int textureHeight, int rowPitch, void* dataPtr);
+    virtual void* BeginModifyTexture(void* textureHandle, int textureWidth, int textureHeight, int* outRowPitch);
+    virtual void EndModifyTexture(void* textureHandle, int textureWidth, int textureHeight, int rowPitch, void* dataPtr);
 
     virtual void DoCopyTexture(void *sourceTexture, int sourceX, int sourceY, int sourceWidth, int sourceHeight, void *destinationTexture, int destinationX, int destinationY);
     virtual bool CreateTexture(int width, int height, int format, int textureIndex);
@@ -33,15 +33,16 @@ public:
     virtual void SetTextureColor(float red, float green, float blue, float alpha, void* targetTexture);
 
 private:
-	void CreateResources();
+    void CreateResources();
 
 private:
-	IUnityGraphicsMetal*	m_MetalGraphics;
-	id<MTLBuffer>			m_VertexBuffer;
-	id<MTLBuffer>			m_ConstantBuffer;
+    IUnityGraphicsMetal*    m_MetalGraphics;
+    id<MTLBuffer>            m_VertexBuffer;
+    id<MTLBuffer>            m_ConstantBuffer;
+    id<MTLRasterizationRateMap> g_RateMap;
 
-	id<MTLDepthStencilState> m_DepthStencil;
-	id<MTLRenderPipelineState>	m_Pipeline;
+    id<MTLDepthStencilState> m_DepthStencil;
+    id<MTLRenderPipelineState>    m_Pipeline;
     
     std::vector<void*> m_Textures;
     int m_UsedTextureCount;
@@ -52,7 +53,7 @@ private:
 
 RenderAPI* CreateRenderAPI_Metal()
 {
-	return new RenderAPI_Metal();
+    return new RenderAPI_Metal();
 }
 
 
@@ -98,76 +99,76 @@ static const char kShaderSource[] =
 
 void RenderAPI_Metal::CreateResources()
 {
-	id<MTLDevice> metalDevice = m_MetalGraphics->MetalDevice();
-	NSError* error = nil;
+    id<MTLDevice> metalDevice = m_MetalGraphics->MetalDevice();
+    NSError* error = nil;
 
-	// Create shaders
-	NSString* srcStr = [[NSString alloc] initWithBytes:kShaderSource length:sizeof(kShaderSource) encoding:NSASCIIStringEncoding];
-	id<MTLLibrary> shaderLibrary = [metalDevice newLibraryWithSource:srcStr options:nil error:&error];
-	if(error != nil)
-	{
-		NSString* desc		= [error localizedDescription];
-		NSString* reason	= [error localizedFailureReason];
-		::fprintf(stderr, "%s\n%s\n\n", desc ? [desc UTF8String] : "<unknown>", reason ? [reason UTF8String] : "");
-	}
+    // Create shaders
+    NSString* srcStr = [[NSString alloc] initWithBytes:kShaderSource length:sizeof(kShaderSource) encoding:NSASCIIStringEncoding];
+    id<MTLLibrary> shaderLibrary = [metalDevice newLibraryWithSource:srcStr options:nil error:&error];
+    if(error != nil)
+    {
+        NSString* desc        = [error localizedDescription];
+        NSString* reason    = [error localizedFailureReason];
+        ::fprintf(stderr, "%s\n%s\n\n", desc ? [desc UTF8String] : "<unknown>", reason ? [reason UTF8String] : "");
+    }
 
-	id<MTLFunction> vertexFunction = [shaderLibrary newFunctionWithName:@"vertexMain"];
-	id<MTLFunction> fragmentFunction = [shaderLibrary newFunctionWithName:@"fragmentMain"];
+    id<MTLFunction> vertexFunction = [shaderLibrary newFunctionWithName:@"vertexMain"];
+    id<MTLFunction> fragmentFunction = [shaderLibrary newFunctionWithName:@"fragmentMain"];
 
 
-	// Vertex / Constant buffers
+    // Vertex / Constant buffers
 
-#	if UNITY_OSX
-	MTLResourceOptions bufferOptions = MTLResourceCPUCacheModeDefaultCache | MTLResourceStorageModeManaged;
-#	else
-	MTLResourceOptions bufferOptions = MTLResourceOptionCPUCacheModeDefault;
-#	endif
+#    if UNITY_OSX
+    MTLResourceOptions bufferOptions = MTLResourceCPUCacheModeDefaultCache | MTLResourceStorageModeManaged;
+#    else
+    MTLResourceOptions bufferOptions = MTLResourceOptionCPUCacheModeDefault;
+#    endif
 
-	m_VertexBuffer = [metalDevice newBufferWithLength:1024 options:bufferOptions];
-	m_VertexBuffer.label = @"PluginVB";
-	m_ConstantBuffer = [metalDevice newBufferWithLength:16*sizeof(float) options:bufferOptions];
-	m_ConstantBuffer.label = @"PluginCB";
+    m_VertexBuffer = [metalDevice newBufferWithLength:1024 options:bufferOptions];
+    m_VertexBuffer.label = @"PluginVB";
+    m_ConstantBuffer = [metalDevice newBufferWithLength:16*sizeof(float) options:bufferOptions];
+    m_ConstantBuffer.label = @"PluginCB";
 
-	// Vertex layout
-	MTLVertexDescriptor* vertexDesc = [MTLVertexDescriptorClass vertexDescriptor];
-	vertexDesc.attributes[0].format			= MTLVertexFormatFloat3;
-	vertexDesc.attributes[0].offset			= 0;
-	vertexDesc.attributes[0].bufferIndex	= 1;
-	vertexDesc.attributes[1].format			= MTLVertexFormatUChar4Normalized;
-	vertexDesc.attributes[1].offset			= 3*sizeof(float);
-	vertexDesc.attributes[1].bufferIndex	= 1;
-	vertexDesc.layouts[1].stride			= kVertexSize;
-	vertexDesc.layouts[1].stepFunction		= MTLVertexStepFunctionPerVertex;
-	vertexDesc.layouts[1].stepRate			= 1;
+    // Vertex layout
+    MTLVertexDescriptor* vertexDesc = [MTLVertexDescriptorClass vertexDescriptor];
+    vertexDesc.attributes[0].format            = MTLVertexFormatFloat3;
+    vertexDesc.attributes[0].offset            = 0;
+    vertexDesc.attributes[0].bufferIndex    = 1;
+    vertexDesc.attributes[1].format            = MTLVertexFormatUChar4Normalized;
+    vertexDesc.attributes[1].offset            = 3*sizeof(float);
+    vertexDesc.attributes[1].bufferIndex    = 1;
+    vertexDesc.layouts[1].stride            = kVertexSize;
+    vertexDesc.layouts[1].stepFunction        = MTLVertexStepFunctionPerVertex;
+    vertexDesc.layouts[1].stepRate            = 1;
 
-	// Pipeline
+    // Pipeline
 
-	MTLRenderPipelineDescriptor* pipeDesc = [[MTLRenderPipelineDescriptorClass alloc] init];
-	// Let's assume we're rendering into BGRA8Unorm...
-	pipeDesc.colorAttachments[0].pixelFormat= MTLPixelFormatBGRA8Unorm;
+    MTLRenderPipelineDescriptor* pipeDesc = [[MTLRenderPipelineDescriptorClass alloc] init];
+    // Let's assume we're rendering into BGRA8Unorm...
+    pipeDesc.colorAttachments[0].pixelFormat= MTLPixelFormatBGRA8Unorm;
 
-	pipeDesc.depthAttachmentPixelFormat		= MTLPixelFormatDepth32Float_Stencil8;
-	pipeDesc.stencilAttachmentPixelFormat	= MTLPixelFormatDepth32Float_Stencil8;
+    pipeDesc.depthAttachmentPixelFormat        = MTLPixelFormatDepth32Float_Stencil8;
+    pipeDesc.stencilAttachmentPixelFormat    = MTLPixelFormatDepth32Float_Stencil8;
 
-	pipeDesc.sampleCount = 1;
-	pipeDesc.colorAttachments[0].blendingEnabled = NO;
+    pipeDesc.sampleCount = 1;
+    pipeDesc.colorAttachments[0].blendingEnabled = NO;
 
-	pipeDesc.vertexFunction		= vertexFunction;
-	pipeDesc.fragmentFunction	= fragmentFunction;
-	pipeDesc.vertexDescriptor	= vertexDesc;
+    pipeDesc.vertexFunction        = vertexFunction;
+    pipeDesc.fragmentFunction    = fragmentFunction;
+    pipeDesc.vertexDescriptor    = vertexDesc;
 
-	m_Pipeline = [metalDevice newRenderPipelineStateWithDescriptor:pipeDesc error:&error];
-	if (error != nil)
-	{
-		::fprintf(stderr, "Metal: Error creating pipeline state: %s\n%s\n", [[error localizedDescription] UTF8String], [[error localizedFailureReason] UTF8String]);
-		error = nil;
-	}
+    m_Pipeline = [metalDevice newRenderPipelineStateWithDescriptor:pipeDesc error:&error];
+    if (error != nil)
+    {
+        ::fprintf(stderr, "Metal: Error creating pipeline state: %s\n%s\n", [[error localizedDescription] UTF8String], [[error localizedFailureReason] UTF8String]);
+        error = nil;
+    }
 
-	// Depth/Stencil state
-	MTLDepthStencilDescriptor* depthDesc = [[MTLDepthStencilDescriptorClass alloc] init];
-	depthDesc.depthCompareFunction = GetUsesReverseZ() ? MTLCompareFunctionGreaterEqual : MTLCompareFunctionLessEqual;
-	depthDesc.depthWriteEnabled = false;
-	m_DepthStencil = [metalDevice newDepthStencilStateWithDescriptor:depthDesc];
+    // Depth/Stencil state
+    MTLDepthStencilDescriptor* depthDesc = [[MTLDepthStencilDescriptorClass alloc] init];
+    depthDesc.depthCompareFunction = GetUsesReverseZ() ? MTLCompareFunctionGreaterEqual : MTLCompareFunctionLessEqual;
+    depthDesc.depthWriteEnabled = false;
+    m_DepthStencil = [metalDevice newDepthStencilStateWithDescriptor:depthDesc];
     
     m_UsedTextureCount = 0;
 }
@@ -180,40 +181,40 @@ RenderAPI_Metal::RenderAPI_Metal()
 
 void RenderAPI_Metal::ProcessDeviceEvent(UnityGfxDeviceEventType type, IUnityInterfaces* interfaces)
 {
-	if (type == kUnityGfxDeviceEventInitialize)
-	{
-		m_MetalGraphics = interfaces->Get<IUnityGraphicsMetal>();
-		MTLVertexDescriptorClass            = NSClassFromString(@"MTLVertexDescriptor");
-		MTLRenderPipelineDescriptorClass    = NSClassFromString(@"MTLRenderPipelineDescriptor");
-		MTLDepthStencilDescriptorClass      = NSClassFromString(@"MTLDepthStencilDescriptor");
+    if (type == kUnityGfxDeviceEventInitialize)
+    {
+        m_MetalGraphics = interfaces->Get<IUnityGraphicsMetal>();
+        MTLVertexDescriptorClass            = NSClassFromString(@"MTLVertexDescriptor");
+        MTLRenderPipelineDescriptorClass    = NSClassFromString(@"MTLRenderPipelineDescriptor");
+        MTLDepthStencilDescriptorClass      = NSClassFromString(@"MTLDepthStencilDescriptor");
 
-		CreateResources();
+        CreateResources();
         
         m_CommandQueue = [m_MetalGraphics->MetalDevice() newCommandQueue];
-	}
-	else if (type == kUnityGfxDeviceEventShutdown)
-	{
-		//@TODO: release resources
-	}
+    }
+    else if (type == kUnityGfxDeviceEventShutdown)
+    {
+        //@TODO: release resources
+    }
 }
 
 void* RenderAPI_Metal::BeginModifyTexture(void* textureHandle, int textureWidth, int textureHeight, int* outRowPitch)
 {
-	const int rowPitch = textureWidth * 4;
-	// Just allocate a system memory buffer here for simplicity
-	unsigned char* data = new unsigned char[rowPitch * textureHeight];
-	*outRowPitch = rowPitch;
-	return data;
+    const int rowPitch = textureWidth * 4;
+    // Just allocate a system memory buffer here for simplicity
+    unsigned char* data = new unsigned char[rowPitch * textureHeight];
+    *outRowPitch = rowPitch;
+    return data;
 }
 
 
 void RenderAPI_Metal::EndModifyTexture(void* textureHandle, int textureWidth, int textureHeight, int rowPitch, void* dataPtr)
 {
-	id<MTLTexture> tex = (__bridge id<MTLTexture>)textureHandle;
-	// Update texture data, and free the memory buffer
+    id<MTLTexture> tex = (__bridge id<MTLTexture>)textureHandle;
+    // Update texture data, and free the memory buffer
     
-	[tex replaceRegion:MTLRegionMake3D(0,0,0, textureWidth,textureHeight,1) mipmapLevel:0 withBytes:dataPtr bytesPerRow:rowPitch];
-	delete[](unsigned char*)dataPtr;
+    [tex replaceRegion:MTLRegionMake3D(0,0,0, textureWidth,textureHeight,1) mipmapLevel:0 withBytes:dataPtr bytesPerRow:rowPitch];
+    delete[](unsigned char*)dataPtr;
 }
 
 void RenderAPI_Metal::DoCopyTexture(void *sourceTexture, int sourceX, int sourceY, int sourceWidth, int sourceHeight, void *destinationTexture, int destinationX, int destinationY)
@@ -238,9 +239,10 @@ bool RenderAPI_Metal::CreateTexture(int width, int height, int pixelFormat, int 
     
     MTLTextureDescriptor *textureDescriptor = [[MTLTextureDescriptor alloc] init];
 
-    textureDescriptor.pixelFormat = pixelFormat;
+    textureDescriptor.pixelFormat = MTLPixelFormatRGBA8Unorm_sRGB;
     textureDescriptor.width = (unsigned int)width;
     textureDescriptor.height = (unsigned int)height;
+    textureDescriptor.usage = MTLTextureUsageShaderRead | MTLTextureUsageRenderTarget;
     
     id<MTLTexture> t = [m_MetalGraphics->MetalDevice() newTextureWithDescriptor:textureDescriptor];
     
@@ -276,6 +278,32 @@ void RenderAPI_Metal::SetTextureColor(float red, float green, float blue, float 
     rpdesc.colorAttachments[0].clearColor = MTLClearColorMake((double)red, (double)green, (double)blue, (double)alpha);
     rpdesc.colorAttachments[0].loadAction = MTLLoadActionClear;
     rpdesc.colorAttachments[0].texture = (__bridge id<MTLTexture>)targetTexture;
+    
+    if(nil == g_RateMap)
+    {
+        id<MTLDevice> device = m_MetalGraphics->MetalDevice();
+            
+            MTLSize screenSize = MTLSizeMake(100, 100, 0);
+            MTLRasterizationRateMapDescriptor* descriptor = [[MTLRasterizationRateMapDescriptor alloc] init];
+            descriptor.label = @"My rate map";
+            descriptor.screenSize = screenSize;
+
+            MTLSize zoneCounts = MTLSizeMake(3, 3, 1);
+            MTLRasterizationRateLayerDescriptor* layerDescriptor = [[MTLRasterizationRateLayerDescriptor alloc] initWithSampleCount:zoneCounts];
+
+            for (int row = 0; row < zoneCounts.height; row++)
+            {
+                layerDescriptor.verticalSampleStorage[row] = 1.0f;
+            }
+            for (int column = 0; column < zoneCounts.width; column++)
+            {
+                layerDescriptor.horizontalSampleStorage[column] = 1.0f;
+            }
+
+            [descriptor setLayer:layerDescriptor atIndex:0];
+            g_RateMap = [device newRasterizationRateMapWithDescriptor: descriptor];
+    }
+    rpdesc.rasterizationRateMap = g_RateMap;
     
     id<MTLCommandBuffer> buffer = [m_CommandQueue commandBuffer];
     id <MTLRenderCommandEncoder> commandEncoder = [buffer renderCommandEncoderWithDescriptor:rpdesc];

@@ -66,34 +66,38 @@ public class DirectGraphicsTest : MonoBehaviour
 		rawImage4.texture = destinationDirectTexture4.texture;
 	}
 
-	int textureTestStep = -1;
+	int textureTestStep = 0;
 	void Update()
 	{
-
-		if(Input.GetKeyDown(KeyCode.P))
+		//if(Input.GetKeyDown(KeyCode.P) || (Input.touchCount > 0))
 		{
-			textureTestStep++;
+			//textureTestStep++;
 			switch(textureTestStep)
             {
 				case 0:
 					textureStepText.text = "Create Single Texture Test";
 					CreateSingleTextureTest();
+					textureTestStep++;
 					break;
 				case 1:
 					textureStepText.text = "Destroy Single Texture Test";
 					DestroySingleTextureTest();
+					textureTestStep++;
 					break;
 				case 2:
 					textureStepText.text = "Create And Destroy Multiple Test";
 					CreateAndDestroyMultipleTest();
+					textureTestStep++;
 					break;
 				case 3:
 					textureStepText.text = "Create and Clear Test";
 					CreateAndClearTest();
+					textureTestStep++;
 					break;
 				case 4:
 					textureStepText.text = "Copy Texture Test";
 					CopyTextureTest();
+					textureTestStep++;
 					break;
 				case 5:
 					textureStepText.text = "Clear Color Texture Test";
@@ -111,8 +115,12 @@ public class DirectGraphicsTest : MonoBehaviour
 					textureStepText.text = "None";
                     break;
             }
-
         }
+		if(textureTestStep > 3)
+			{
+				Debug.Log("ClearTex");
+				ClearColorTextureTest();
+			}
 	}
 
 	DirectTexture2D dt1;
