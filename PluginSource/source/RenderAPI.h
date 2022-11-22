@@ -37,7 +37,8 @@ public:
     virtual bool CreateTexture(int width, int height, int format, int textureIndex) = 0;
 	virtual void DestroyTexture(int textureIndex) = 0;
 	virtual void* GetTexturePointer(int textureIndex) = 0;
-    virtual void SetTextureColor(float red, float green, float blue, float alpha, void* targetTexture) = 0;
+    virtual void SetTextureColor(float red, float green, float blue, float alpha, void* targetTexture, float w, float h, float t) = 0;
+    virtual void DrawVRRBlit(void* sourceTexture, void* targetTexture) = 0;
 };
 
 

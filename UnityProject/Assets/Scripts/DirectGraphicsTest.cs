@@ -15,6 +15,9 @@ using Elanetic.Graphics;
 
 public class DirectGraphicsTest : MonoBehaviour
 {
+	RenderTexture FuckTex;
+	RenderTexture FuckOutput;
+
 	Texture2D referenceTexture1;
 	Texture2D referenceTexture2;
 	Texture2D referenceTexture3;
@@ -23,6 +26,7 @@ public class DirectGraphicsTest : MonoBehaviour
 	RawImage rawImage2;
 	RawImage rawImage3;
 	RawImage rawImage4;
+	RawImage rawImageFuck;
 
 	public TextMeshProUGUI textureStepText;
 
@@ -34,93 +38,27 @@ public class DirectGraphicsTest : MonoBehaviour
 	void Start()
 	{
 		//Load textures
-		referenceTexture1 = Resources.Load<Texture2D>("tex1");
-		referenceTexture2 = Resources.Load<Texture2D>("tex2");
-		referenceTexture3 = Resources.Load<Texture2D>("tex3");
+		FuckTex = new RenderTexture(Screen.width, Screen.height, 0, RenderTextureFormat.ARGB32);
+        FuckTex.name = "TmpColorTex";
+		FuckTex.Create();
 
-		rawImage1 = GameObject.Find("RawImage1").GetComponent<RawImage>();
-		rawImage1.texture = null;
-		rawImage1.color = Color.white;
+		FuckOutput = new RenderTexture(Screen.width, Screen.height, 0, RenderTextureFormat.ARGB32);
+        FuckOutput.name = "TmpColorOutputTex";
+		FuckOutput.Create();
 
-		rawImage2 = GameObject.Find("RawImage2").GetComponent<RawImage>();
-		rawImage2.texture = null;
-		rawImage2.color = Color.white;
-
-		rawImage3 = GameObject.Find("RawImage3").GetComponent<RawImage>();
-		rawImage3.texture = null;
-		rawImage3.color = Color.white;
-
-		rawImage4 = GameObject.Find("RawImage4").GetComponent<RawImage>();
-		rawImage4.texture = null;
-		rawImage4.color = Color.white;
-
-
-		unityTexture = new Texture2D(1024, 1024, TextureFormat.RGBA32, false, true);
-		sourceDirectTexture = DirectGraphics.CreateTexture(1024, 1024, TextureFormat.RGBA32);
-		DirectGraphics.ClearTexture(Color.red, sourceDirectTexture.texture);
-		destinationDirectTexture = DirectGraphics.CreateTexture(1024, 1024, TextureFormat.RGBA32);
-		destinationDirectTexture4 = DirectGraphics.CreateTexture(1024, 1024, TextureFormat.RGBA32);
-		rawImage1.texture = sourceDirectTexture.texture;
-		rawImage2.texture = destinationDirectTexture.texture;
-		rawImage3.texture = unityTexture;
-		rawImage4.texture = destinationDirectTexture4.texture;
+		rawImageFuck = GameObject.Find("RawImageFuck").GetComponent<RawImage>();
+		rawImageFuck.texture = FuckOutput;
+		rawImageFuck.color = Color.white;
 	}
 
 	int textureTestStep = 0;
 	void Update()
 	{
-		//if(Input.GetKeyDown(KeyCode.P) || (Input.touchCount > 0))
+		if(FuckTex && FuckOutput)
 		{
-			//textureTestStep++;
-			switch(textureTestStep)
-            {
-				case 0:
-					textureStepText.text = "Create Single Texture Test";
-					CreateSingleTextureTest();
-					textureTestStep++;
-					break;
-				case 1:
-					textureStepText.text = "Destroy Single Texture Test";
-					DestroySingleTextureTest();
-					textureTestStep++;
-					break;
-				case 2:
-					textureStepText.text = "Create And Destroy Multiple Test";
-					CreateAndDestroyMultipleTest();
-					textureTestStep++;
-					break;
-				case 3:
-					textureStepText.text = "Create and Clear Test";
-					CreateAndClearTest();
-					textureTestStep++;
-					break;
-				case 4:
-					textureStepText.text = "Copy Texture Test";
-					CopyTextureTest();
-					textureTestStep++;
-					break;
-				case 5:
-					textureStepText.text = "Clear Color Texture Test";
-					ClearColorTextureTest();
-					break;
-				case 6:
-					textureStepText.text = "Clear Texture Test";
-					ClearTextureTest();
-					break;
-				case 7:
-					textureStepText.text = "Copy Texture Offset Test";
-					CopyTextureOffsetTest();
-					break;
-				default:
-					textureStepText.text = "None";
-                    break;
-            }
-        }
-		if(textureTestStep > 3)
-			{
-				Debug.Log("ClearTex");
-				ClearColorTextureTest();
-			}
+			DirectGraphics.ClearTexture(new Color(0.1f, 0.2f, 0.3f), FuckTex, FuckTex.width, FuckTex.height, Time.timeSinceLevelLoad);
+			DirectGraphics.DrawVRRBlit(FuckTex, FuckOutput);
+		}
 	}
 
 	DirectTexture2D dt1;

@@ -59,7 +59,14 @@ namespace Elanetic.Graphics
 #else
         [DllImport("RenderingPlugin")]
 #endif
-        static private extern void SetTextureColor(float red, float green, float blue, float alpha, IntPtr targetTexture);
+        static private extern void SetTextureColor(float red, float green, float blue, float alpha, IntPtr targetTexture, float w, float h, float t);
+        
+        #if(UNITY_IOS || UNITY_TVOS || UNITY_WEBGL) && !UNITY_EDITOR
+	[DllImport ("__Internal")]
+#else
+        [DllImport("RenderingPlugin")]
+#endif
+        static private extern void DrawVRRBlit(IntPtr sourceTexture, IntPtr targetTexture);
         #endregion
 
         static private readonly GraphicsDeviceType[] SUPPORTED_GRAPHICS_API =
@@ -190,7 +197,21 @@ namespace Elanetic.Graphics
             CopyTextures(sourceNativePointer, sourceX, sourceY, width, height, destinationNativePointer, destinationX, destinationY);
         }
 
-        static public void ClearTexture(Color color, Texture2D targetTexture)
+        static public void DrawVRRBlit(RenderTexture sourceTexture, RenderTexture targetTexture)
+        {
+            //SyncRenderingThread();
+            Debug.Log(sourceTexture.colorBuffer.GetNativeRenderBufferPtr() + "_" + targetTexture.colorBuffer.GetNativeRenderBufferPtr());
+            DrawVRRBlit(sourceTexture.colorBuffer.GetNativeRenderBufferPtr(), targetTexture.colorBuffer.GetNativeRenderBufferPtr());
+        }
+
+         static public void ClearTexture(Color color, RenderTexture targetTexture, float w = 0, float h = 0, float t = 0)
+    {
+            //SyncRenderingThread();
+            Debug.Log(targetTexture.colorBuffer.GetNativeRenderBufferPtr());
+            SetTextureColor(color.r, color.g, color.b, color.a, targetTexture.colorBuffer.GetNativeRenderBufferPtr(), w , h, t);
+    }
+
+        static public void ClearTexture(Color color, Texture2D targetTexture, float w = 0, float h = 0, float t = 0)
         {
 #if DEBUG
             if(!IsSupported())
@@ -200,7 +221,7 @@ namespace Elanetic.Graphics
             }
 #endif
             SyncRenderingThread();
-            SetTextureColor(color.r, color.g, color.b, color.a, targetTexture.GetNativeTexturePtr());
+            SetTextureColor(color.r, color.g, color.b, color.a, targetTexture.GetNativeTexturePtr(), w , h, t);
         }
 
         static public void ClearTexture(Texture2D targetTexture)
@@ -213,7 +234,7 @@ namespace Elanetic.Graphics
             }
 #endif
             SyncRenderingThread();
-            SetTextureColor(0.0f, 0.0f, 0.0f, 0.0f, targetTexture.GetNativeTexturePtr());
+            SetTextureColor(0.0f, 0.0f, 0.0f, 0.0f, targetTexture.GetNativeTexturePtr(), 0, 0, 0);
         }
 
         static public void ClearTexture(Color color, IntPtr targetTexturePointer)
@@ -226,7 +247,7 @@ namespace Elanetic.Graphics
             }
 #endif
             SyncRenderingThread();
-            SetTextureColor(color.r, color.g, color.b, color.a, targetTexturePointer);
+            SetTextureColor(color.r, color.g, color.b, color.a, targetTexturePointer, 0, 0, 0);
         }
 
         static public void ClearTexture(IntPtr targetTexturePointer)
@@ -239,7 +260,7 @@ namespace Elanetic.Graphics
             }
 #endif
             SyncRenderingThread();
-            SetTextureColor(0.0f, 0.0f, 0.0f, 0.0f, targetTexturePointer);
+            SetTextureColor(0.0f, 0.0f, 0.0f, 0.0f, targetTexturePointer,0 ,0, 0);
         }
 
         static private Texture2D m_SyncTexture;

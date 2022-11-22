@@ -59,13 +59,16 @@ extern "C" UNITY_INTERFACE_EXPORT void* UNITY_INTERFACE_API GetNativeTexturePoin
 	return s_CurrentAPI->GetTexturePointer(textureIndex);
 }
 
-extern "C" UNITY_INTERFACE_EXPORT void UNITY_INTERFACE_API SetTextureColor(float red, float green, float blue, float alpha, void* targetTexture)
+extern "C" UNITY_INTERFACE_EXPORT void UNITY_INTERFACE_API SetTextureColor(float red, float green, float blue, float alpha, void* targetTexture, float w, float h, float t)
 {
-    return s_CurrentAPI->SetTextureColor(red, green, blue, alpha, targetTexture);
+    return s_CurrentAPI->SetTextureColor(red, green, blue, alpha, targetTexture, w, h, t);
 }
 
 
-
+extern "C" UNITY_INTERFACE_EXPORT void UNITY_INTERFACE_API DrawVRRBlit(void* sourceTexture, void* targetTexture)
+{
+    return s_CurrentAPI->DrawVRRBlit(sourceTexture, targetTexture);
+}
 
 // --------------------------------------------------------------------------
 // UnitySetInterfaces
@@ -253,6 +256,39 @@ static void UNITY_INTERFACE_API OnRenderEvent(int eventID)
 	//ModifyVertexBuffer();
 }
 
+typedef struct
+{
+    void* colorTexture;
+    float w;
+    float h;
+    float t;
+    int validatedata;
+}BeginPassData;
+
+typedef struct
+{
+    void* srcTexture;
+    void* dstTexture;
+    int validatedata;
+}BlitPassData;
+
+static BeginPassData* g_PassData;
+static BlitPassData* g_BlitData;
+
+static void UNITY_INTERFACE_API OnRenderEventAndData(int eventID, void* data)
+{
+    if(eventID == 0)
+    {
+        g_PassData = (BeginPassData*)data;
+        s_CurrentAPI->SetTextureColor(0, 0, 0, 0, g_PassData->colorTexture, g_PassData->w, g_PassData->h, g_PassData->t);
+    }
+    else if(eventID == 3)
+    {
+        g_BlitData = (BlitPassData*)data;
+        s_CurrentAPI->DrawVRRBlit(g_BlitData->srcTexture, g_BlitData->dstTexture);
+    }
+}
+
 
 
 // --------------------------------------------------------------------------
@@ -263,3 +299,7 @@ extern "C" UnityRenderingEvent UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API GetRen
 	return OnRenderEvent;
 }
 
+extern "C" UnityRenderingEventAndData UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API GetRenderEventAndDataFunc()
+{
+    return OnRenderEventAndData;
+}
