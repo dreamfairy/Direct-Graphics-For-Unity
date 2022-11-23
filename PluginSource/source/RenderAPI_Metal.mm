@@ -31,6 +31,9 @@ public:
     virtual void DestroyTexture(int textureIndex);
     virtual void* GetTexturePointer(int textureIndex);
     virtual void SetTextureColor(float red, float green, float blue, float alpha, void* targetTexture, float w, float h, float t);
+    virtual void DrawMixTriangle();
+    virtual void BeginVRRPass(void* targetTexture, float w, float h, float t);
+    virtual void EndVRRPass();
 
 private:
     void CreateRatemapResource();
@@ -46,6 +49,8 @@ private:
     
     
     //vrr
+    id<MTLRenderCommandEncoder> g_VRRPassEncoder;
+    id<MTLCommandBuffer> g_VRRPassCMD;
     id<MTLRasterizationRateMap> g_RateMap;
     id<MTLFunction> g_VProg, g_FProg;
     id<MTLBuffer> g_VB;
@@ -418,7 +423,107 @@ void* RenderAPI_Metal::GetTexturePointer(int textureIndex)
     return m_Textures[textureIndex];
 }
 
+void RenderAPI_Metal::BeginVRRPass(void* targetTexture, float w, float h, float t)
+{
+    if(w == 0 || h == 0){
+        return;
+    }
+    
+    //m_MetalGraphics->EndCurrentCommandEncoder();
+    
+    MTLRenderPassDescriptor *rpdesc = [MTLRenderPassDescriptor renderPassDescriptor];
+    rpdesc.colorAttachments[0].clearColor = MTLClearColorMake(0, 0, 0, 0);
+    rpdesc.colorAttachments[0].loadAction = MTLLoadActionClear;
+    
+    id<MTLTexture> colorRT = m_MetalGraphics->TextureFromRenderBuffer((UnityRenderBuffer)targetTexture);
+    
+    rpdesc.colorAttachments[0].texture = colorRT;
+    
+    id<MTLDevice> device = m_MetalGraphics->MetalDevice();
+    
+    if(nil == g_RateMap && w > 0 && h > 0)
+    {
+        MTLSize screenSize = MTLSizeMake(w, h, 0);
+        MTLRasterizationRateMapDescriptor* descriptor = [[MTLRasterizationRateMapDescriptor alloc] init];
+        descriptor.label = @"My rate map";
+        descriptor.screenSize = screenSize;
 
+        MTLSize zoneCounts = MTLSizeMake(3, 3, 1);
+        MTLRasterizationRateLayerDescriptor* layerDescriptor = [[MTLRasterizationRateLayerDescriptor alloc] initWithSampleCount:zoneCounts];
+
+        for (int row = 0; row < zoneCounts.height; row++)
+        {
+            layerDescriptor.verticalSampleStorage[row] = 1.0f;
+        }
+        for (int column = 0; column < zoneCounts.width; column++)
+        {
+            layerDescriptor.horizontalSampleStorage[column] = 1.0f;
+        }
+    
+        layerDescriptor.verticalSampleStorage[0] = 0.001f;
+        layerDescriptor.verticalSampleStorage[1] = 0.001f;
+        //layerDescriptor.verticalSampleStorage[2] = 1.0f;
+        layerDescriptor.horizontalSampleStorage[0] = 0.001f;
+        //layerDescriptor.horizontalSampleStorage[1] = 0.001f;
+        //layerDescriptor.horizontalSampleStorage[2] = 0.001f;
+        
+        /**layerDescriptor.verticalSampleStorage[0] = 0.15f;
+        layerDescriptor.horizontalSampleStorage[1] = 0.15f;
+        layerDescriptor.verticalSampleStorage[1] = 0.15f;
+        layerDescriptor.horizontalSampleStorage[1] = 0.15f;
+        layerDescriptor.verticalSampleStorage[2] = 0.15f;
+        layerDescriptor.horizontalSampleStorage[1] = 0.15f;
+        
+        layerDescriptor.verticalSampleStorage[0] = 1.0f;
+        layerDescriptor.horizontalSampleStorage[2] = 1.0f;
+        layerDescriptor.verticalSampleStorage[1] = 1.0f;
+        layerDescriptor.horizontalSampleStorage[2] = 1.0f;
+        layerDescriptor.verticalSampleStorage[2] = 1.0f;
+        layerDescriptor.horizontalSampleStorage[2] = 1.0f;**/
+
+        [descriptor setLayer:layerDescriptor atIndex:0];
+        g_RateMap = [device newRasterizationRateMapWithDescriptor: descriptor];
+    }
+    
+    if(nil != g_RateMap)
+    {
+        rpdesc.rasterizationRateMap = g_RateMap;
+        
+        MTLSizeAndAlign rateMapParamSize = g_RateMap.parameterBufferSizeAndAlign;
+        m_RatemapSizeBuffer = [device newBufferWithLength: rateMapParamSize.size
+                                            options:MTLResourceStorageModeShared];
+        [g_RateMap copyParameterDataToBuffer:m_RatemapSizeBuffer offset:0];
+    }
+    
+   
+    id<MTLCommandBuffer> buffer = [m_CommandQueue commandBuffer];
+    id<MTLRenderCommandEncoder> commandEncoder = [buffer renderCommandEncoderWithDescriptor:rpdesc];
+    g_VRRPassCMD = buffer;
+    g_VRRPassEncoder = commandEncoder;
+    DrawColoredTriangle(g_VRRPassEncoder, 0);
+    //[g_VRRPassCMD endEncoding];
+    //[buffer commit];
+    //DrawColoredTriangle(commandEncoder, t);
+    //[commandEncoder endEncoding];
+    //[buffer commit];
+}
+
+void RenderAPI_Metal::EndVRRPass()
+{
+    if(g_VRRPassCMD)
+    {
+        [g_VRRPassEncoder endEncoding];
+        [g_VRRPassCMD commit];
+    }
+}
+
+void RenderAPI_Metal::DrawMixTriangle()
+{
+    if(g_VRRPassEncoder)
+    {
+        DrawColoredTriangle(g_VRRPassEncoder, 0);
+    }
+}
 
 void RenderAPI_Metal::DrawSimpleTriangles( id<MTLRenderCommandEncoder> cmd, const float worldMatrix[16], int triangleCount, const void* verticesFloat3Byte4)
 {

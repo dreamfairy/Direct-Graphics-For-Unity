@@ -244,6 +244,15 @@ static void ModifyTexturePixels()
      */
 }
 
+enum EventID
+{
+        event_BeginVRRPass = 0,
+        event_EndVRRPass = 1,
+        event_DoVRRPostPass = 2,
+        event_DrawSimpleTriangle = 3,
+        event_DrawMixSimpleTriangle = 4,
+ };
+
 
 static void UNITY_INTERFACE_API OnRenderEvent(int eventID)
 {
@@ -251,8 +260,17 @@ static void UNITY_INTERFACE_API OnRenderEvent(int eventID)
 	if (s_CurrentAPI == NULL)
 		return;
 
-	DrawColoredTriangle();
-	ModifyTexturePixels();
+    switch(eventID)
+    {
+        case event_DrawMixSimpleTriangle:
+            s_CurrentAPI->DrawMixTriangle();
+            break;
+        case event_EndVRRPass:
+            s_CurrentAPI->EndVRRPass();
+            break;
+    }
+	//DrawColoredTriangle();
+	//ModifyTexturePixels();
 	//ModifyVertexBuffer();
 }
 
@@ -263,7 +281,7 @@ typedef struct
     float h;
     float t;
     int validatedata;
-}BeginPassData;
+}TrianglePassData;
 
 typedef struct
 {
@@ -272,20 +290,31 @@ typedef struct
     int validatedata;
 }BlitPassData;
 
-static BeginPassData* g_PassData;
+static TrianglePassData* g_PassData;
 static BlitPassData* g_BlitData;
 
 static void UNITY_INTERFACE_API OnRenderEventAndData(int eventID, void* data)
 {
-    if(eventID == 0)
+    switch(eventID)
     {
-        g_PassData = (BeginPassData*)data;
-        s_CurrentAPI->SetTextureColor(0, 0, 0, 0, g_PassData->colorTexture, g_PassData->w, g_PassData->h, g_PassData->t);
-    }
-    else if(eventID == 3)
-    {
-        g_BlitData = (BlitPassData*)data;
-        s_CurrentAPI->DrawVRRBlit(g_BlitData->srcTexture, g_BlitData->dstTexture);
+        case event_BeginVRRPass:
+            g_PassData = (TrianglePassData*)data;
+            s_CurrentAPI->BeginVRRPass( g_PassData->colorTexture, g_PassData->w, g_PassData->h, g_PassData->t);
+            break;
+        case event_EndVRRPass:
+            s_CurrentAPI->EndVRRPass();
+            break;
+        case event_DoVRRPostPass:
+            g_BlitData = (BlitPassData*)data;
+            s_CurrentAPI->DrawVRRBlit(g_BlitData->srcTexture, g_BlitData->dstTexture);
+            break;
+        case event_DrawSimpleTriangle:
+            g_PassData = (TrianglePassData*)data;
+            s_CurrentAPI->SetTextureColor(0, 0, 0, 0, g_PassData->colorTexture, g_PassData->w, g_PassData->h, g_PassData->t);
+            break;
+        case event_DrawMixSimpleTriangle:
+            s_CurrentAPI->DrawMixTriangle();
+            break;
     }
 }
 

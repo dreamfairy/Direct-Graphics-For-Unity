@@ -26,6 +26,22 @@ namespace Elanetic.Graphics
     static public class DirectGraphics
     {
         #region External Functions
+
+#if (UNITY_IOS && !UNITY_EDITOR)
+	    [DllImport ("__Internal")]
+#else
+        [DllImport("RenderingPlugin")]
+#endif
+        private static extern IntPtr GetRenderEventAndDataFunc();
+
+#if (UNITY_IOS && !UNITY_EDITOR)
+	    [DllImport ("__Internal")]
+#else
+        [DllImport("RenderingPlugin")]
+#endif
+        private static extern IntPtr GetRenderEventFunc();
+        
+
 #if(UNITY_IOS || UNITY_TVOS || UNITY_WEBGL) && !UNITY_EDITOR
 	[DllImport ("__Internal")]
 #else
@@ -196,6 +212,32 @@ namespace Elanetic.Graphics
             SyncRenderingThread();
             CopyTextures(sourceNativePointer, sourceX, sourceY, width, height, destinationNativePointer, destinationX, destinationY);
         }
+
+        static public void BeginVRRPassCMD(CommandBuffer cmd, int eventId, IntPtr data)
+        {
+            cmd.IssuePluginEventAndData(GetRenderEventAndDataFunc(), eventId, data);
+        }
+
+        static public void EndVRRPassCMD(CommandBuffer cmd, int eventId)
+        {
+            cmd.IssuePluginEvent(GetRenderEventFunc(), eventId);
+        }
+
+        static public void DrawMixSimpleTriangleCMD(CommandBuffer cmd, int eventId)
+        {
+             cmd.IssuePluginEvent(GetRenderEventFunc(), eventId);
+        }
+
+        static public void DrawVRRBlitCMD(CommandBuffer cmd, int eventId, IntPtr data)
+        {
+            cmd.IssuePluginEventAndData(GetRenderEventAndDataFunc(), eventId, data);
+        }
+
+        static public void DrawSimpleTriangleCMD(CommandBuffer cmd, int eventId, IntPtr data)
+        {
+            cmd.IssuePluginEventAndData(GetRenderEventAndDataFunc(), eventId, data);
+        }
+        
 
         static public void DrawVRRBlit(RenderTexture sourceTexture, RenderTexture targetTexture)
         {
