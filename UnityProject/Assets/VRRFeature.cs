@@ -94,17 +94,31 @@ public class VRRFeature : ScriptableRendererFeature
         {
             if (m_BuildinItem)
             {
-                m_BuildinMF = m_BuildinItem.GetComponent<MeshFilter>();
-                m_BuildinRR = m_BuildinItem.GetComponent<Renderer>();
+                m_BuildinMF = m_BuildinItem.GetComponentInChildren<MeshFilter>();
+                m_BuildinRR = m_BuildinItem.GetComponentInChildren<Renderer>();
 
-                m_BuildinItem.GetComponent<Renderer>().enabled = false;
+                m_BuildinRR.enabled = false;
             }
             else
             {
-                m_BuildinItem = GameObject.Find("Cube");
+                m_BuildinItem = GameObject.Find("Pikachu");
             }
 
-            //#if (!UNITY_EDITOR && UNITY_IOS)
+            if(m_BuildinItem)
+            {
+                CommandBuffer pikaCmd = CommandBufferPool.Get("PikaCM");
+                for(int i = 0; i < m_BuildinRR.sharedMaterials.Length; i++)
+                {
+                    Material subMat = m_BuildinRR.sharedMaterials[i];
+                    pikaCmd.DrawMesh((m_BuildinRR is SkinnedMeshRenderer) ? ((SkinnedMeshRenderer)m_BuildinRR).sharedMesh : m_BuildinMF.sharedMesh, m_BuildinRR.localToWorldMatrix, subMat, i, 0);
+                }
+                context.ExecuteCommandBuffer(pikaCmd);
+                pikaCmd.Clear();
+                CommandBufferPool.Release(pikaCmd);
+            }
+            
+
+            #if (!UNITY_EDITOR && UNITY_IOS)
             CommandBuffer cmd = CommandBufferPool.Get("FuckCMD");
 
             unsafe
@@ -166,7 +180,7 @@ public class VRRFeature : ScriptableRendererFeature
             cmd.Clear();
 
             CommandBufferPool.Release(cmd);
-            //#endif
+            #endif
         }
 
         private float[] m_tmpLocalToWorldMatrixBuffer = new float[16];
@@ -213,9 +227,9 @@ public class VRRFeature : ScriptableRendererFeature
     // This method is called when setting up the renderer once per-camera.
     public override void AddRenderPasses(ScriptableRenderer renderer, ref RenderingData renderingData)
     {
-#if (!UNITY_EDITOR && UNITY_IOS)
+//#if (!UNITY_EDITOR && UNITY_IOS)
         renderer.EnqueuePass(m_ScriptablePass);
-#endif
+//#endif
     }
 }
 
