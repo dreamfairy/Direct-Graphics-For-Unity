@@ -22,6 +22,7 @@ public class VRRFeature : ScriptableRendererFeature
             event_DoVRRPostPass = 2,
             event_DrawSimpleTriangle = 3,
             event_DrawMixSimpleTriangle = 4,
+            event_DrawMesh = 5,
         };
 
         [StructLayout(LayoutKind.Sequential)]
@@ -40,6 +41,15 @@ public class VRRFeature : ScriptableRendererFeature
             public IntPtr colorTex;
             public IntPtr outputTex;
             public int validatedata;
+        }
+
+        [StructLayout(LayoutKind.Sequential)]
+        struct DrawData
+        {
+            public IntPtr vertexBuffer;
+            public IntPtr indexBuffer;
+            public IntPtr textureBuffer;
+            public IntPtr localToWorld;
         }
 
         private GameObject m_BuildinItem;
@@ -152,8 +162,6 @@ public class VRRFeature : ScriptableRendererFeature
             }
 
             DirectGraphics.DrawVRRBlitCMD(cmd, (int)EventID.event_DoVRRPostPass, _blitPassArgs.AddrOfPinnedObject());
-            //cmd.IssuePluginEventAndData(GetRenderEventFunc(), (int)EventID.event_DrawSimpleTriangle, _beginPassArgs.AddrOfPinnedObject());
-            //cmd.IssuePluginEventAndData(GetRenderEventFunc(), (int)EventID.event_BeginVRRPass, _blitPassArgs.AddrOfPinnedObject());
             context.ExecuteCommandBuffer(cmd);
             cmd.Clear();
 
@@ -162,20 +170,26 @@ public class VRRFeature : ScriptableRendererFeature
         }
 
         private float[] m_tmpLocalToWorldMatrixBuffer = new float[16];
-        private GCHandle gcVertices;
-        void DrawUnLitMesh(CommandBuffer cmd, IntPtr vertexBuffer, IntPtr indexBuffer, IntPtr textureBuffer, Matrix4x4 localToWorldMatrix)
+        private GCHandle drawHandle;
+        void DrawUnLitMesh(CommandBuffer cmd, IntPtr pVertexBuffer, IntPtr pIndexBuffer, IntPtr pTextureBuffer, Matrix4x4 pLocalToWorldMatrix)
         {
             for(int i = 0; i < 16; i++)
             {
-                m_tmpLocalToWorldMatrixBuffer[i] = localToWorldMatrix[i];
+                m_tmpLocalToWorldMatrixBuffer[i] = pLocalToWorldMatrix[i];
             }
 
             unsafe
             {
-                gcVertices = GCHandle.Alloc(m_tmpLocalToWorldMatrixBuffer);
+                drawHandle = GCHandle.Alloc(
+                    new DrawData {
+                        vertexBuffer = pVertexBuffer,
+                        indexBuffer = pIndexBuffer,
+                        textureBuffer = pTextureBuffer,
+                        localToWorld = GCHandle.Alloc(m_tmpLocalToWorldMatrixBuffer).AddrOfPinnedObject()
+                    }, GCHandleType.Pinned);
             }
 
-            DirectGraphics.DrawMesh(cmd, vertexBuffer, indexBuffer, textureBuffer, gcVertices.AddrOfPinnedObject());
+            DirectGraphics.DrawMesh(cmd, (int)EventID.event_DrawMesh, drawHandle.AddrOfPinnedObject());
         }
 
         // Cleanup any allocated resources that were created during the execution of this render pass.
