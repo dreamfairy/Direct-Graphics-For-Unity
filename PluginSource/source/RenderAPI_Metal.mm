@@ -34,6 +34,7 @@ public:
     virtual void DrawMixTriangle();
     virtual void BeginVRRPass(void* targetTexture, float w, float h, float t);
     virtual void EndVRRPass();
+    virtual void DrawMesh(void* vertexBuffer, void* indexBuffer, void* textureBuffer, void* localToWorld);
 
 private:
     void CreateRatemapResource();
@@ -63,6 +64,8 @@ private:
     //simpletriangle
     id<MTLDepthStencilState> m_DepthStencil;
     id<MTLRenderPipelineState>    m_Pipeline;
+
+    //drawmesh
     
     std::vector<void*> m_Textures;
     int m_UsedTextureCount;
@@ -245,6 +248,36 @@ void RenderAPI_Metal::CreateRatemapResource()
        g_VertexDesc.attributes[0] = PosAttrDesc;
        g_VertexDesc.attributes[1] = UVAttrDesc;
        g_VertexDesc.layouts[4] = streamDesc;
+}
+
+void RenderAPI_Metal::DrawMesh(void* vertexBuffer, void* indexBuffer, void* textureBuffer, void* localToWorld)
+{
+    //const int vbSize = triangleCount * 3 * kVertexSize;
+    const int cbSize = 16 * sizeof(float);
+
+    //::memcpy(m_VertexBuffer.contents, verticesFloat3Byte4, vbSize);
+    ::memcpy(m_ConstantBuffer.contents, localToWorld, cbSize);
+    id<MTLBuffer> vertexBuffer = (id<MTLBuffer)(vertexBuffer);
+    id<MTLBuffer> indexBuffer = (id<MTLBuffer)(indexBuffer);
+    id<MTLTexture> srvTexture = id<MTLTexture> tex = (__bridge id<MTLTexture>)textureBuffer;
+
+#if UNITY_OSX
+    //[m_VertexBuffer didModifyRange:NSMakeRange(0, vbSize)];
+    [m_ConstantBuffer didModifyRange:NSMakeRange(0, cbSize)];
+#endif
+
+    // Setup rendering state
+    [cmd setRenderPipelineState:m_Pipeline];
+    //[cmd setDepthStencilState:m_DepthStencil];
+    [cmd setCullMode:MTLCullModeNone];
+
+    // Bind buffers
+    [cmd setVertexBuffer:vertexBuffer offset:0 atIndex:1];
+    [cmd setVertexBuffer:m_ConstantBuffer offset:0 atIndex:0];
+    [cmd setFragmentBuffer:srvTexture offset:0 atIndex:0];
+
+    // Draw
+    [cmd drawIndexPrimitives:MTLPrimitiveTypeTriangle indexBuffer:indexBuffer vertexStart:0 vertexCount:triangleCount*3];
 }
 
 void RenderAPI_Metal::CreateResources()

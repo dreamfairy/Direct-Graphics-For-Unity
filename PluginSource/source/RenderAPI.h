@@ -42,6 +42,7 @@ public:
     virtual void BeginVRRPass(void* targetTexture, float w, float h, float t) = 0;
     virtual void EndVRRPass() = 0;
     virtual void DrawMixTriangle() = 0;
+	virtual void DrawMesh() = 0;
 };
 
 

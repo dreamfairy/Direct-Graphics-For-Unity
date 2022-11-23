@@ -251,6 +251,7 @@ enum EventID
         event_DoVRRPostPass = 2,
         event_DrawSimpleTriangle = 3,
         event_DrawMixSimpleTriangle = 4,
+		event_DrawMesh = 5,
  };
 
 
@@ -290,8 +291,17 @@ typedef struct
     int validatedata;
 }BlitPassData;
 
+typedef struct
+{
+    void* vertexBuffer;
+    void* indexBuffer;
+	void* textureBuffer;
+	void* localToWorld;
+}DrawMeshData;
+
 static TrianglePassData* g_PassData;
 static BlitPassData* g_BlitData;
+static DrawMeshData* g_DrawMeshData;
 
 static void UNITY_INTERFACE_API OnRenderEventAndData(int eventID, void* data)
 {
@@ -315,6 +325,10 @@ static void UNITY_INTERFACE_API OnRenderEventAndData(int eventID, void* data)
         case event_DrawMixSimpleTriangle:
             s_CurrentAPI->DrawMixTriangle();
             break;
+		case event_DrawMesh:
+			DrawMeshData = (DrawMeshData*)data;
+			s_CurrentAPI->DrawMesh(DrawMeshData->vertexBuffer, DrawMeshData->indexBuffer, DrawMeshData->textureBuffer, DrawMeshData->localToWorld);
+			break;
     }
 }
 
