@@ -238,6 +238,10 @@ namespace Elanetic.Graphics
             cmd.IssuePluginEventAndData(GetRenderEventAndDataFunc(), eventId, data);
         }
         
+        static public void DrawMesh(CommandBuffer cmd, IntPtr vertexBuffer, IntPtr indexBuffer, IntPtr textureBuffer, IntPtr localToWorldMatrix)
+        {
+
+        }
 
         static public void DrawVRRBlit(RenderTexture sourceTexture, RenderTexture targetTexture)
         {

@@ -12,43 +12,43 @@ public class VRRFeature : ScriptableRendererFeature
     class CustomRenderPass : ScriptableRenderPass
     {
         RenderTexture FuckTex;
-	    RenderTexture FuckOutput;
+        RenderTexture FuckOutput;
         RawImage rawImageFuck;
 
-         enum EventID
+        enum EventID
         {
-                event_BeginVRRPass = 0,
-                event_EndVRRPass = 1,
-                event_DoVRRPostPass = 2,
-                event_DrawSimpleTriangle = 3,
-                event_DrawMixSimpleTriangle = 4,
-         };
+            event_BeginVRRPass = 0,
+            event_EndVRRPass = 1,
+            event_DoVRRPostPass = 2,
+            event_DrawSimpleTriangle = 3,
+            event_DrawMixSimpleTriangle = 4,
+        };
 
-          [StructLayout(LayoutKind.Sequential)]
-            struct TriangleData
-            {
-                public IntPtr colorTex;
-                public float w;
-                public float h;
-                public float t;
-                public int validatedata;
-            }
+        [StructLayout(LayoutKind.Sequential)]
+        struct TriangleData
+        {
+            public IntPtr colorTex;
+            public float w;
+            public float h;
+            public float t;
+            public int validatedata;
+        }
 
-          [StructLayout(LayoutKind.Sequential)]
-            struct VRRPassData
-            {
-                public IntPtr colorTex;
-                public IntPtr outputTex;
-                public int validatedata;
-            }
+        [StructLayout(LayoutKind.Sequential)]
+        struct VRRPassData
+        {
+            public IntPtr colorTex;
+            public IntPtr outputTex;
+            public int validatedata;
+        }
 
-            private GameObject m_BuildinItem;
-            private MeshFilter m_BuildinMF;
-            private Renderer m_BuildinRR;
+        private GameObject m_BuildinItem;
+        private MeshFilter m_BuildinMF;
+        private Renderer m_BuildinRR;
 
         public CustomRenderPass()
         {
-           
+
             //Load textures
             FuckTex = new RenderTexture(Screen.width, Screen.height, 0, RenderTextureFormat.ARGB32);
             FuckTex.name = "TmpColorTex";
@@ -59,8 +59,11 @@ public class VRRFeature : ScriptableRendererFeature
             FuckOutput.Create();
 
             rawImageFuck = GameObject.Find("RawImageFuck").GetComponent<RawImage>();
-            rawImageFuck.texture = FuckOutput;
-            rawImageFuck.color = Color.white;
+            if (rawImageFuck)
+            {
+                rawImageFuck.texture = FuckOutput;
+                rawImageFuck.color = Color.white;
+            }
         }
         // This method is called before executing the render pass.
         // It can be used to configure render targets and their clear state. Also to create temporary render target textures.
@@ -79,7 +82,7 @@ public class VRRFeature : ScriptableRendererFeature
         // You don't have to call ScriptableRenderContext.submit, the render pipeline will call it at specific points in the pipeline.
         public override void Execute(ScriptableRenderContext context, ref RenderingData renderingData)
         {
-            if(m_BuildinItem)
+            if (m_BuildinItem)
             {
                 m_BuildinMF = m_BuildinItem.GetComponent<MeshFilter>();
                 m_BuildinRR = m_BuildinItem.GetComponent<Renderer>();
@@ -91,50 +94,63 @@ public class VRRFeature : ScriptableRendererFeature
                 m_BuildinItem = GameObject.Find("Cube");
             }
 
-            #if (!UNITY_EDITOR && UNITY_IOS)
+            //#if (!UNITY_EDITOR && UNITY_IOS)
             CommandBuffer cmd = CommandBufferPool.Get("FuckCMD");
 
             unsafe
+            {
+                _beginPassArgs = GCHandle.Alloc(
+                    new TriangleData
                     {
-                        _beginPassArgs = GCHandle.Alloc(
-                            new TriangleData
-                            {
-                                colorTex = FuckTex.colorBuffer.GetNativeRenderBufferPtr(),
-                                w = FuckTex.width,
-                                h = FuckTex.height,
-                                t = Time.timeSinceLevelLoad,
-                                validatedata = 123,
-                            },
-                            GCHandleType.Pinned
-                        );
+                        colorTex = FuckTex.colorBuffer.GetNativeRenderBufferPtr(),
+                        w = FuckTex.width,
+                        h = FuckTex.height,
+                        t = Time.timeSinceLevelLoad,
+                        validatedata = 123,
+                    },
+                    GCHandleType.Pinned
+                );
 
-                        _blitPassArgs = GCHandle.Alloc(
-                           new VRRPassData
-                           {
-                               colorTex = FuckTex.colorBuffer.GetNativeRenderBufferPtr(),
-                               outputTex = FuckOutput.colorBuffer.GetNativeRenderBufferPtr(),
-                               validatedata = 456,
-                           },
-                           GCHandleType.Pinned
-                       );
-                    }
+                _blitPassArgs = GCHandle.Alloc(
+                   new VRRPassData
+                   {
+                       colorTex = FuckTex.colorBuffer.GetNativeRenderBufferPtr(),
+                       outputTex = FuckOutput.colorBuffer.GetNativeRenderBufferPtr(),
+                       validatedata = 456,
+                   },
+                   GCHandleType.Pinned
+               );
+            }
 
             Debug.Log("Before Call Event");
-           
-            if(m_BuildinItem)
+
+            if (m_BuildinItem)
             {
                 Debug.Log("Draw Mix");
-                 DirectGraphics.BeginVRRPassCMD(cmd, (int)EventID.event_BeginVRRPass, _beginPassArgs.AddrOfPinnedObject());
-                 DirectGraphics.DrawMixSimpleTriangleCMD(cmd, (int)EventID.event_DrawMixSimpleTriangle);
-                 cmd.DrawMesh(m_BuildinMF.sharedMesh, m_BuildinItem.transform.localToWorldMatrix, m_BuildinRR.sharedMaterial);
-                 context.ExecuteCommandBuffer(cmd);
-                 cmd.Clear();
-                 DirectGraphics.EndVRRPassCMD(cmd, (int)EventID.event_EndVRRPass);
-            }else{
-                 Debug.Log("Draw Normal");
-                 DirectGraphics.DrawSimpleTriangleCMD(cmd, (int)EventID.event_DrawSimpleTriangle, _beginPassArgs.AddrOfPinnedObject());
+                DirectGraphics.BeginVRRPassCMD(cmd, (int)EventID.event_BeginVRRPass, _beginPassArgs.AddrOfPinnedObject());
+                DirectGraphics.DrawMixSimpleTriangleCMD(cmd, (int)EventID.event_DrawMixSimpleTriangle);
+
+
+                IntPtr indexBufferPtr = m_BuildinMF.sharedMesh.GetNativeIndexBufferPtr();
+                for (int i = 0; i < m_BuildinRR.sharedMaterials.Length; i++)
+                {
+                    IntPtr vertexBufferPtr = m_BuildinMF.sharedMesh.GetNativeVertexBufferPtr(i);
+                    Material subMat = m_BuildinRR.sharedMaterials[i];
+                    IntPtr subTexBufferPtr = subMat.mainTexture.GetNativeTexturePtr();
+                    DrawUnLitMesh(cmd, vertexBufferPtr, indexBufferPtr, subTexBufferPtr, m_BuildinRR.localToWorldMatrix);
+                }
+
+                //cmd.DrawMesh(m_BuildinMF.sharedMesh, m_BuildinItem.transform.localToWorldMatrix, m_BuildinRR.sharedMaterial);
+                context.ExecuteCommandBuffer(cmd);
+                cmd.Clear();
+                DirectGraphics.EndVRRPassCMD(cmd, (int)EventID.event_EndVRRPass);
             }
-                    
+            else
+            {
+                Debug.Log("Draw Normal");
+                DirectGraphics.DrawSimpleTriangleCMD(cmd, (int)EventID.event_DrawSimpleTriangle, _beginPassArgs.AddrOfPinnedObject());
+            }
+
             DirectGraphics.DrawVRRBlitCMD(cmd, (int)EventID.event_DoVRRPostPass, _blitPassArgs.AddrOfPinnedObject());
             //cmd.IssuePluginEventAndData(GetRenderEventFunc(), (int)EventID.event_DrawSimpleTriangle, _beginPassArgs.AddrOfPinnedObject());
             //cmd.IssuePluginEventAndData(GetRenderEventFunc(), (int)EventID.event_BeginVRRPass, _blitPassArgs.AddrOfPinnedObject());
@@ -142,7 +158,24 @@ public class VRRFeature : ScriptableRendererFeature
             cmd.Clear();
 
             CommandBufferPool.Release(cmd);
-            #endif
+            //#endif
+        }
+
+        private float[] m_tmpLocalToWorldMatrixBuffer = new float[16];
+        private GCHandle gcVertices;
+        void DrawUnLitMesh(CommandBuffer cmd, IntPtr vertexBuffer, IntPtr indexBuffer, IntPtr textureBuffer, Matrix4x4 localToWorldMatrix)
+        {
+            for(int i = 0; i < 16; i++)
+            {
+                m_tmpLocalToWorldMatrixBuffer[i] = localToWorldMatrix[i];
+            }
+
+            unsafe
+            {
+                gcVertices = GCHandle.Alloc(m_tmpLocalToWorldMatrixBuffer);
+            }
+
+            DirectGraphics.DrawMesh(cmd, vertexBuffer, indexBuffer, textureBuffer, gcVertices.AddrOfPinnedObject());
         }
 
         // Cleanup any allocated resources that were created during the execution of this render pass.
@@ -166,9 +199,9 @@ public class VRRFeature : ScriptableRendererFeature
     // This method is called when setting up the renderer once per-camera.
     public override void AddRenderPasses(ScriptableRenderer renderer, ref RenderingData renderingData)
     {
-        //#if (!UNITY_EDITOR && UNITY_IOS)
+#if (!UNITY_EDITOR && UNITY_IOS)
         renderer.EnqueuePass(m_ScriptablePass);
-        //#endif
+#endif
     }
 }
 
