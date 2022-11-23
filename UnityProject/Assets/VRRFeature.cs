@@ -154,13 +154,18 @@ public class VRRFeature : ScriptableRendererFeature
                 DirectGraphics.BeginVRRPassCMD(cmd, (int)EventID.event_BeginVRRPass, _beginPassArgs.AddrOfPinnedObject());
                 DirectGraphics.DrawMixSimpleTriangleCMD(cmd, (int)EventID.event_DrawMixSimpleTriangle);
 
-
-                IntPtr indexBufferPtr = m_BuildinMF.sharedMesh.GetNativeIndexBufferPtr();
+                Mesh targetMesh = (m_BuildinRR is SkinnedMeshRenderer) ? ((SkinnedMeshRenderer)(m_BuildinRR)).sharedMesh : m_BuildinMF.sharedMesh;
+                IntPtr indexBufferPtr = targetMesh.GetNativeIndexBufferPtr();
+                IntPtr vertexBufferPtr = targetMesh.GetNativeVertexBufferPtr(i);
+                
                 for (int i = 0; i < m_BuildinRR.sharedMaterials.Length; i++)
                 {
-                    IntPtr vertexBufferPtr = m_BuildinMF.sharedMesh.GetNativeVertexBufferPtr(i);
                     Material subMat = m_BuildinRR.sharedMaterials[i];
                     IntPtr subTexBufferPtr = subMat.mainTexture.GetNativeTexturePtr();
+
+                    int subMeshIndexOffset = targetMesh.GetIndexStart(i);
+                    int subMeshIndexCount = targetMesh.GetIndexCount(i);
+                    
                     DrawUnLitMesh(cmd, vertexBufferPtr, indexBufferPtr, subTexBufferPtr, m_BuildinRR.localToWorldMatrix);
                 }
 
