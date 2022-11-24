@@ -34,9 +34,10 @@ public:
     virtual void DrawMixTriangle();
     virtual void BeginVRRPass(void* targetTexture, float w, float h, float t);
     virtual void EndVRRPass();
-    virtual void DrawMesh(void* vertexBuffer, void* indexBuffer, void* textureBuffer, void* localToWorld);
+    virtual void DrawMesh(void* vertexBuffer, void* indexBuffer, void* textureBuffer, void* localToWorld,int indexOffset, int indexCount, float t);
 
 private:
+    void CreateUnityVertexLayout();
     void CreateRatemapResource();
     void CreateResources();
     void DrawSimpleTriangles( id<MTLRenderCommandEncoder> cmd, const float worldMatrix[16], int triangleCount, const void* verticesFloat3Byte4);
@@ -69,6 +70,8 @@ private:
     
     std::vector<void*> m_Textures;
     int m_UsedTextureCount;
+    id<MTLDepthStencilState> m_MeshDepthStencil;
+    id<MTLRenderPipelineState>    m_MeshPipeline;
     
     id<MTLCommandQueue> m_CommandQueue;
 
@@ -119,6 +122,38 @@ static const char kShaderSource[] =
 "    return out;\n"
 "}\n";
 
+static const char kMeshShaderSource[] =
+"#include <metal_stdlib>\n"
+"using namespace metal;\n"
+"struct AppData\n"
+"{\n"
+"    float4x4 worldMatrix;\n"
+"};\n"
+"struct Vertex\n"
+"{\n"
+"    float3 pos [[attribute(0)]];\n"
+"};\n"
+"struct VSOutput\n"
+"{\n"
+"    float4 pos [[position]];\n"
+"    half4  color;\n"
+"};\n"
+"struct FSOutput\n"
+"{\n"
+"    half4 frag_data [[color(0)]];\n"
+"};\n"
+"vertex VSOutput vertexMain(Vertex input [[stage_in]], constant AppData& my_cb [[buffer(0)]])\n"
+"{\n"
+"    VSOutput out = { my_cb.worldMatrix * float4(input.pos.xyz, 1), (half4(1,0,0,1)) };\n"
+"    return out;\n"
+"}\n"
+"fragment FSOutput fragmentMain(VSOutput input [[stage_in]])\n"
+"{\n"
+"    FSOutput out = { input.color };\n"
+"    return out;\n"
+"}\n";
+
+
 static const char GMetalVRRVertexShader[] = R"""(
 using namespace metal;
 
@@ -137,7 +172,7 @@ struct FVSOut
 vertex FVSOut Main_VS(FVSFuckStageIn __VSStageIn [[ stage_in ]])
 {
     FVSOut t2;
-    t2.Texcoord.xy = float2(__VSStageIn.InTexCoord.x, 1- __VSStageIn.InTexCoord.y);
+    t2.Texcoord.xy = float2(__VSStageIn.InTexCoord.x, 1 - __VSStageIn.InTexCoord.y);
     t2.Position.xyzw = float4(__VSStageIn.InPosition.xyz, 1.0);
     return t2;
 }
@@ -250,34 +285,138 @@ void RenderAPI_Metal::CreateRatemapResource()
        g_VertexDesc.layouts[4] = streamDesc;
 }
 
-void RenderAPI_Metal::DrawMesh(void* vertexBuffer, void* indexBuffer, void* textureBuffer, void* localToWorld)
+void RenderAPI_Metal::CreateUnityVertexLayout()
+{
+    id<MTLDevice> metalDevice = m_MetalGraphics->MetalDevice();
+    NSError* error = nil;
+
+    // Create shaders
+    NSString* srcStr = [[NSString alloc] initWithBytes:kMeshShaderSource length:sizeof(kMeshShaderSource) encoding:NSASCIIStringEncoding];
+    id<MTLLibrary> shaderLibrary = [metalDevice newLibraryWithSource:srcStr options:nil error:&error];
+    if(error != nil)
+    {
+        NSString* desc        = [error localizedDescription];
+        NSString* reason    = [error localizedFailureReason];
+        ::fprintf(stderr, "%s\n%s\n\n", desc ? [desc UTF8String] : "<unknown>", reason ? [reason UTF8String] : "");
+    }
+
+    id<MTLFunction> vertexFunction = [shaderLibrary newFunctionWithName:@"vertexMain"];
+    id<MTLFunction> fragmentFunction = [shaderLibrary newFunctionWithName:@"fragmentMain"];
+
+
+    // Vertex / Constant buffers
+
+#    if UNITY_OSX
+    MTLResourceOptions bufferOptions = MTLResourceCPUCacheModeDefaultCache | MTLResourceStorageModeManaged;
+#    else
+    MTLResourceOptions bufferOptions = MTLResourceOptionCPUCacheModeDefault;
+#    endif
+
+    m_VertexBuffer = [metalDevice newBufferWithLength:1024 options:bufferOptions];
+    m_VertexBuffer.label = @"PluginVB";
+    m_ConstantBuffer = [metalDevice newBufferWithLength:16*sizeof(float) options:bufferOptions];
+    m_ConstantBuffer.label = @"PluginCB";
+    
+    // Vertex layout
+    MTLVertexDescriptor* vertexDesc = [MTLVertexDescriptorClass vertexDescriptor];
+    //pos
+    vertexDesc.attributes[0].format            = MTLVertexFormatFloat3;
+    vertexDesc.attributes[0].offset            = 0;
+    vertexDesc.attributes[0].bufferIndex       = 1;
+    
+    /**
+    //normal
+    vertexDesc.attributes[1].format            = MTLVertexFormatFloat3;
+    vertexDesc.attributes[1].offset            = 3*sizeof(float);
+    vertexDesc.attributes[1].bufferIndex       = 1;
+    //tangent
+    vertexDesc.attributes[2].format            = MTLVertexFormatFloat4;
+    vertexDesc.attributes[2].offset            = 6*sizeof(float);
+    vertexDesc.attributes[2].bufferIndex       = 1;
+    //uv
+    vertexDesc.attributes[3].format            = MTLVertexFormatFloat2;
+    vertexDesc.attributes[3].offset            = 10*sizeof(float);
+    vertexDesc.attributes[3].bufferIndex       = 1;
+    **/
+    
+    vertexDesc.layouts[1].stride              = 10*sizeof(float);
+    vertexDesc.layouts[1].stepFunction        = MTLVertexStepFunctionPerVertex;
+    vertexDesc.layouts[1].stepRate            = 1;
+    
+    MTLRenderPipelineDescriptor* pipeDesc = [[MTLRenderPipelineDescriptorClass alloc] init];
+    // Let's assume we're rendering into BGRA8Unorm...
+    pipeDesc.colorAttachments[0].pixelFormat= MTLPixelFormatRGBA8Unorm;
+
+    pipeDesc.depthAttachmentPixelFormat        = MTLPixelFormatInvalid;
+    pipeDesc.stencilAttachmentPixelFormat    = MTLPixelFormatInvalid;
+
+    pipeDesc.sampleCount = 1;
+    pipeDesc.colorAttachments[0].blendingEnabled = NO;
+
+    pipeDesc.vertexFunction      = vertexFunction;
+    pipeDesc.fragmentFunction    = fragmentFunction;
+    pipeDesc.vertexDescriptor    = vertexDesc;
+
+    m_MeshPipeline = [metalDevice newRenderPipelineStateWithDescriptor:pipeDesc error:&error];
+    if (error != nil)
+    {
+        ::fprintf(stderr, "Metal: Error creating pipeline state: %s\n%s\n", [[error localizedDescription] UTF8String], [[error localizedFailureReason] UTF8String]);
+        error = nil;
+    }
+
+    // Depth/Stencil state
+    MTLDepthStencilDescriptor* depthDesc = [[MTLDepthStencilDescriptorClass alloc] init];
+    depthDesc.depthCompareFunction = GetUsesReverseZ() ? MTLCompareFunctionGreaterEqual : MTLCompareFunctionLessEqual;
+    depthDesc.depthWriteEnabled = false;
+    m_MeshDepthStencil = [metalDevice newDepthStencilStateWithDescriptor:depthDesc];
+    
+    m_UsedTextureCount = 0;
+}
+
+
+
+void RenderAPI_Metal::DrawMesh(void* vertexHandle, void* indexHandle, void* texturehandle, void* localToWorld, int indexOffset, int indexCount, float t)
 {
     //const int vbSize = triangleCount * 3 * kVertexSize;
     const int cbSize = 16 * sizeof(float);
+    
+    float phi = t * 0.5f; // time set externally from Unity script
+    float cosPhi = cosf(phi);
+    float sinPhi = sinf(phi);
+    float depth = 0.7f;
+    float finalDepth = 1.0f - depth;
+    
+    float worldMatrix[16] = {
+        cosPhi,-sinPhi,0,0,
+        sinPhi,cosPhi,0,0,
+        0,0,1,0,
+        0,0,finalDepth,1,
+    };
 
     //::memcpy(m_VertexBuffer.contents, verticesFloat3Byte4, vbSize);
-    ::memcpy(m_ConstantBuffer.contents, localToWorld, cbSize);
-    id<MTLBuffer> vertexBuffer = (id<MTLBuffer)(vertexBuffer);
-    id<MTLBuffer> indexBuffer = (id<MTLBuffer)(indexBuffer);
-    id<MTLTexture> srvTexture = id<MTLTexture> tex = (__bridge id<MTLTexture>)textureBuffer;
+    ::memcpy(m_ConstantBuffer.contents, worldMatrix, cbSize);
+    id<MTLBuffer> vertexBuffer = (__bridge id<MTLBuffer>)(vertexHandle);
+    id<MTLBuffer> indexBuffer = (__bridge id<MTLBuffer>)(indexHandle);
+    id<MTLTexture> srvTexture = (__bridge id<MTLTexture>)texturehandle;
 
 #if UNITY_OSX
     //[m_VertexBuffer didModifyRange:NSMakeRange(0, vbSize)];
     [m_ConstantBuffer didModifyRange:NSMakeRange(0, cbSize)];
 #endif
 
+    id<MTLRenderCommandEncoder> cmd = g_VRRPassEncoder;
     // Setup rendering state
-    [cmd setRenderPipelineState:m_Pipeline];
+    [cmd setRenderPipelineState:m_MeshPipeline];
     //[cmd setDepthStencilState:m_DepthStencil];
     [cmd setCullMode:MTLCullModeNone];
 
     // Bind buffers
     [cmd setVertexBuffer:vertexBuffer offset:0 atIndex:1];
     [cmd setVertexBuffer:m_ConstantBuffer offset:0 atIndex:0];
-    [cmd setFragmentBuffer:srvTexture offset:0 atIndex:0];
+    //[cmd setFragmentBuffer:srvTexture offset:0 atIndex:0];
 
     // Draw
-    [cmd drawIndexPrimitives:MTLPrimitiveTypeTriangle indexBuffer:indexBuffer vertexStart:0 vertexCount:triangleCount*3];
+    [cmd drawIndexedPrimitives:MTLPrimitiveTypeTriangle indexCount:indexCount indexType:MTLIndexTypeUInt16 indexBuffer:indexBuffer indexBufferOffset:indexOffset];
 }
 
 void RenderAPI_Metal::CreateResources()
@@ -371,6 +510,7 @@ void RenderAPI_Metal::ProcessDeviceEvent(UnityGfxDeviceEventType type, IUnityInt
         MTLRenderPipelineDescriptorClass    = NSClassFromString(@"MTLRenderPipelineDescriptor");
         MTLDepthStencilDescriptorClass      = NSClassFromString(@"MTLDepthStencilDescriptor");
 
+        CreateUnityVertexLayout();
         CreateResources();
         CreateRatemapResource();
         
@@ -533,7 +673,7 @@ void RenderAPI_Metal::BeginVRRPass(void* targetTexture, float w, float h, float 
     id<MTLRenderCommandEncoder> commandEncoder = [buffer renderCommandEncoderWithDescriptor:rpdesc];
     g_VRRPassCMD = buffer;
     g_VRRPassEncoder = commandEncoder;
-    DrawColoredTriangle(g_VRRPassEncoder, 0);
+    //DrawColoredTriangle(g_VRRPassEncoder, 0);
     //[g_VRRPassCMD endEncoding];
     //[buffer commit];
     //DrawColoredTriangle(commandEncoder, t);
