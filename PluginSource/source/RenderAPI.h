@@ -39,7 +39,7 @@ public:
 	virtual void* GetTexturePointer(int textureIndex) = 0;
     virtual void SetTextureColor(float red, float green, float blue, float alpha, void* targetTexture, float w, float h, float t) = 0;
     virtual void DrawVRRBlit(void* sourceTexture, void* targetTexture) = 0;
-    virtual void BeginVRRPass(void* targetTexture, float w, float h, float t) = 0;
+    virtual void BeginVRRPass(void* targetTexture, void* depthStencilTexture, float w, float h, float t) = 0;
     virtual void EndVRRPass() = 0;
     virtual void DrawMixTriangle() = 0;
     virtual void DrawMesh(void* vertexBuffer, void* indexBuffer,void* uvBuffer, void* textureBuffer, void* localToWorld,int indexOffset, int indexCount, float time) = 0;

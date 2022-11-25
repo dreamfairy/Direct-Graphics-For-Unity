@@ -12,6 +12,7 @@ public class VRRFeature : ScriptableRendererFeature
     class CustomRenderPass : ScriptableRenderPass
     {
         RenderTexture FuckTex;
+        RenderTexture FuckDepthTex;
         RenderTexture FuckOutput;
         RawImage rawImageFuck;
 
@@ -29,6 +30,7 @@ public class VRRFeature : ScriptableRendererFeature
         struct TriangleData
         {
             public IntPtr colorTex;
+            public IntPtr depthTex;
             public float w;
             public float h;
             public float t;
@@ -67,6 +69,10 @@ public class VRRFeature : ScriptableRendererFeature
             FuckTex = new RenderTexture(Screen.width, Screen.height, 0, RenderTextureFormat.ARGB32);
             FuckTex.name = "TmpColorTex";
             FuckTex.Create();
+
+            FuckDepthTex = new RenderTexture(Screen.width, Screen.height, 0, RenderTextureFormat.Depth);
+            FuckDepthTex.name = "TmpDepthTex";
+            FuckDepthTex.Create();
 
             FuckOutput = new RenderTexture(Screen.width, Screen.height, 0, RenderTextureFormat.ARGB32);
             FuckOutput.name = "TmpColorOutputTex";
@@ -112,10 +118,19 @@ public class VRRFeature : ScriptableRendererFeature
             if(m_BuildinItem)
             {
                 CommandBuffer pikaCmd = CommandBufferPool.Get("PikaCM");
+                Mesh targetMesh = (m_BuildinRR is SkinnedMeshRenderer) ? ((SkinnedMeshRenderer)(m_BuildinRR)).sharedMesh : m_BuildinMF.sharedMesh;
+
+                VertexAttributeDescriptor[] vertexDesc = targetMesh.GetVertexAttributes();
+
                 for(int i = 0; i < m_BuildinRR.sharedMaterials.Length; i++)
                 {
+                    int subMeshIndexOffset = (int)targetMesh.GetIndexStart(i);
+                    int subMeshIndexCount = (int)targetMesh.GetIndexCount(i);
+
+                    //Debug.Log(string.Format("SubMesh {0} start {1} offset {2}", i, subMeshIndexOffset, subMeshIndexCount));
+
                     Material subMat = m_BuildinRR.sharedMaterials[i];
-                    Matrix4x4 trs = Matrix4x4.TRS(new Vector3(0,0,3), Quaternion.Euler(-90,0,0), Vector3.one);
+                    Matrix4x4 trs = Matrix4x4.TRS(new Vector3(0,-0.5f+Mathf.Sin(Time.realtimeSinceStartup),1.5f), Quaternion.Euler(-90,Mathf.Sin(Time.realtimeSinceStartup) * 360,0), Vector3.one);
                     pikaCmd.DrawMesh((m_BuildinRR is SkinnedMeshRenderer) ? ((SkinnedMeshRenderer)m_BuildinRR).sharedMesh : m_BuildinMF.sharedMesh, trs, subMat, i, 0);
                 }
                 context.ExecuteCommandBuffer(pikaCmd);
@@ -133,6 +148,7 @@ public class VRRFeature : ScriptableRendererFeature
                     new TriangleData
                     {
                         colorTex = FuckTex.colorBuffer.GetNativeRenderBufferPtr(),
+                        depthTex = FuckDepthTex.depthBuffer.GetNativeRenderBufferPtr(),
                         w = FuckTex.width,
                         h = FuckTex.height,
                         t = Time.timeSinceLevelLoad,
@@ -163,7 +179,7 @@ public class VRRFeature : ScriptableRendererFeature
                 Mesh targetMesh = (m_BuildinRR is SkinnedMeshRenderer) ? ((SkinnedMeshRenderer)(m_BuildinRR)).sharedMesh : m_BuildinMF.sharedMesh;
                 IntPtr indexBufferPtr = targetMesh.GetNativeIndexBufferPtr();
                 IntPtr vertexBufferPtr = targetMesh.GetNativeVertexBufferPtr(0);
-                IntPtr uvBufferPtr = targetMesh.GetNativeVertexBufferPtr(2);
+                IntPtr uvBufferPtr = targetMesh.GetNativeVertexBufferPtr(1);
 
                 for (int i = 0; i < m_BuildinRR.sharedMaterials.Length; i++)
                 {
@@ -173,9 +189,12 @@ public class VRRFeature : ScriptableRendererFeature
                     int subMeshIndexOffset = (int)targetMesh.GetIndexStart(i);
                     int subMeshIndexCount = (int)targetMesh.GetIndexCount(i);
 
-                    Matrix4x4 trs = Matrix4x4.TRS(new Vector3(0,0,3), Quaternion.Euler(-90,0,0), Vector3.one);
+                    Matrix4x4 trs = Matrix4x4.TRS(new Vector3(0,-0.5f+Mathf.Sin(Time.realtimeSinceStartup),1.5f), Quaternion.Euler(-90,Mathf.Sin(Time.realtimeSinceStartup) * 360,0), Vector3.one);
+                    Matrix4x4 view = renderingData.cameraData.camera.worldToCameraMatrix;
+                    Matrix4x4 proj = GL.GetGPUProjectionMatrix(renderingData.cameraData.camera.projectionMatrix, true);
+                    Matrix4x4 mvp = proj * view * trs;
                     
-                    DrawUnLitMesh(cmd, vertexBufferPtr, indexBufferPtr, uvBufferPtr, subTexBufferPtr, subMeshIndexOffset, subMeshIndexCount, trs);
+                    DrawUnLitMesh(cmd, vertexBufferPtr, indexBufferPtr, uvBufferPtr, subTexBufferPtr, subMeshIndexOffset, subMeshIndexCount, mvp);
                 }
 
                 //cmd.DrawMesh(m_BuildinMF.sharedMesh, m_BuildinItem.transform.localToWorldMatrix, m_BuildinRR.sharedMaterial);

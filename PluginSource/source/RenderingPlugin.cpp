@@ -278,6 +278,7 @@ static void UNITY_INTERFACE_API OnRenderEvent(int eventID)
 typedef struct
 {
     void* colorTexture;
+    void* depthTexture;
     float w;
     float h;
     float t;
@@ -313,7 +314,7 @@ static void UNITY_INTERFACE_API OnRenderEventAndData(int eventID, void* data)
     {
         case event_BeginVRRPass:
             g_PassData = (TrianglePassData*)data;
-            s_CurrentAPI->BeginVRRPass( g_PassData->colorTexture, g_PassData->w, g_PassData->h, g_PassData->t);
+            s_CurrentAPI->BeginVRRPass( g_PassData->colorTexture, g_PassData->depthTexture,  g_PassData->w, g_PassData->h, g_PassData->t);
             break;
         case event_EndVRRPass:
             s_CurrentAPI->EndVRRPass();
