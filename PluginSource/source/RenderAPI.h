@@ -42,7 +42,7 @@ public:
     virtual void BeginVRRPass(void* targetTexture, float w, float h, float t) = 0;
     virtual void EndVRRPass() = 0;
     virtual void DrawMixTriangle() = 0;
-    virtual void DrawMesh(void* vertexBuffer, void* indexBuffer, void* textureBuffer, void* localToWorld,int indexOffset, int indexCount, float time) = 0;
+    virtual void DrawMesh(void* vertexBuffer, void* indexBuffer,void* uvBuffer, void* textureBuffer, void* localToWorld,int indexOffset, int indexCount, float time) = 0;
 };
 
 

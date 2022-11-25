@@ -34,7 +34,7 @@ public:
     virtual void DrawMixTriangle();
     virtual void BeginVRRPass(void* targetTexture, float w, float h, float t);
     virtual void EndVRRPass();
-    virtual void DrawMesh(void* vertexBuffer, void* indexBuffer, void* textureBuffer, void* localToWorld,int indexOffset, int indexCount, float t);
+    virtual void DrawMesh(void* vertexBuffer, void* indexBuffer,void* uvBuffer, void* textureBuffer, void* localToWorld,int indexOffset, int indexCount, float t);
 
 private:
     void CreateUnityVertexLayout();
@@ -132,6 +132,8 @@ static const char kMeshShaderSource[] =
 "struct Vertex\n"
 "{\n"
 "    float3 pos [[attribute(0)]];\n"
+"    float3 normal [[attribute(1)]];\n"
+"    float2 uv [[attribute(2)]];\n"
 "};\n"
 "struct VSOutput\n"
 "{\n"
@@ -144,7 +146,7 @@ static const char kMeshShaderSource[] =
 "};\n"
 "vertex VSOutput vertexMain(Vertex input [[stage_in]], constant AppData& my_cb [[buffer(0)]])\n"
 "{\n"
-"    VSOutput out = { my_cb.worldMatrix * float4(input.pos.xyz, 1), (half4(1,0,0,1)) };\n"
+"    VSOutput out = { my_cb.worldMatrix * float4(input.pos.xyz, 1), (half4((half2)input.uv.xy,0,1)) };\n"
 "    return out;\n"
 "}\n"
 "fragment FSOutput fragmentMain(VSOutput input [[stage_in]])\n"
@@ -332,16 +334,20 @@ void RenderAPI_Metal::CreateUnityVertexLayout()
     //tangent
     vertexDesc.attributes[2].format            = MTLVertexFormatFloat4;
     vertexDesc.attributes[2].offset            = 6*sizeof(float);
-    vertexDesc.attributes[2].bufferIndex       = 1;
+    vertexDesc.attributes[2].bufferIndex       = 1;**/
+    
     //uv
-    vertexDesc.attributes[3].format            = MTLVertexFormatFloat2;
-    vertexDesc.attributes[3].offset            = 10*sizeof(float);
-    vertexDesc.attributes[3].bufferIndex       = 1;
-    **/
+    vertexDesc.attributes[2].format            = MTLVertexFormatFloat2;
+    vertexDesc.attributes[2].offset            = 0;
+    vertexDesc.attributes[2].bufferIndex       = 2;
     
     vertexDesc.layouts[1].stride              = 10*sizeof(float);
     vertexDesc.layouts[1].stepFunction        = MTLVertexStepFunctionPerVertex;
     vertexDesc.layouts[1].stepRate            = 1;
+    
+    vertexDesc.layouts[2].stride              = 2*sizeof(float);
+    vertexDesc.layouts[2].stepFunction        = MTLVertexStepFunctionPerVertex;
+    vertexDesc.layouts[2].stepRate            = 1;
     
     MTLRenderPipelineDescriptor* pipeDesc = [[MTLRenderPipelineDescriptorClass alloc] init];
     // Let's assume we're rendering into BGRA8Unorm...
@@ -375,7 +381,7 @@ void RenderAPI_Metal::CreateUnityVertexLayout()
 
 
 
-void RenderAPI_Metal::DrawMesh(void* vertexHandle, void* indexHandle, void* texturehandle, void* localToWorld, int indexOffset, int indexCount, float t)
+void RenderAPI_Metal::DrawMesh(void* vertexHandle, void* indexHandle, void* uvHandle, void* texturehandle, void* localToWorld, int indexOffset, int indexCount, float t)
 {
     //const int vbSize = triangleCount * 3 * kVertexSize;
     const int cbSize = 16 * sizeof(float);
@@ -398,6 +404,11 @@ void RenderAPI_Metal::DrawMesh(void* vertexHandle, void* indexHandle, void* text
     id<MTLBuffer> vertexBuffer = (__bridge id<MTLBuffer>)(vertexHandle);
     id<MTLBuffer> indexBuffer = (__bridge id<MTLBuffer>)(indexHandle);
     id<MTLTexture> srvTexture = (__bridge id<MTLTexture>)texturehandle;
+    id<MTLBuffer> uvBuffer = (__bridge id<MTLBuffer>)uvHandle;
+    
+    int uvBufferLen = [uvBuffer length];
+    int uvBufferStride = uvBufferLen / 2848;
+    NSLog(@("UV Stride %d"), uvBufferStride);
 
 #if UNITY_OSX
     //[m_VertexBuffer didModifyRange:NSMakeRange(0, vbSize)];
@@ -411,8 +422,9 @@ void RenderAPI_Metal::DrawMesh(void* vertexHandle, void* indexHandle, void* text
     [cmd setCullMode:MTLCullModeNone];
 
     // Bind buffers
-    [cmd setVertexBuffer:vertexBuffer offset:0 atIndex:1];
     [cmd setVertexBuffer:m_ConstantBuffer offset:0 atIndex:0];
+    [cmd setVertexBuffer:vertexBuffer offset:0 atIndex:1];
+    [cmd setVertexBuffer:uvBuffer offset:0 atIndex:2];
     //[cmd setFragmentBuffer:srvTexture offset:0 atIndex:0];
 
     // Draw
