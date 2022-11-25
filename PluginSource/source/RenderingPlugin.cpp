@@ -297,6 +297,9 @@ typedef struct
     void* indexBuffer;
 	void* textureBuffer;
 	void* localToWorld;
+    int indexOffset;
+    int indexCount;
+    float time;
 }DrawMeshData;
 
 static TrianglePassData* g_PassData;
@@ -326,8 +329,11 @@ static void UNITY_INTERFACE_API OnRenderEventAndData(int eventID, void* data)
             s_CurrentAPI->DrawMixTriangle();
             break;
 		case event_DrawMesh:
-			DrawMeshData = (DrawMeshData*)data;
-			s_CurrentAPI->DrawMesh(DrawMeshData->vertexBuffer, DrawMeshData->indexBuffer, DrawMeshData->textureBuffer, DrawMeshData->localToWorld);
+            g_DrawMeshData = (DrawMeshData*)data;
+			s_CurrentAPI->DrawMesh(g_DrawMeshData->vertexBuffer, g_DrawMeshData->indexBuffer, g_DrawMeshData->textureBuffer, g_DrawMeshData->localToWorld,
+                g_DrawMeshData->indexOffset,
+                g_DrawMeshData->indexCount,
+                g_DrawMeshData->time);
 			break;
     }
 }

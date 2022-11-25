@@ -50,6 +50,9 @@ public class VRRFeature : ScriptableRendererFeature
             public IntPtr indexBuffer;
             public IntPtr textureBuffer;
             public IntPtr localToWorld;
+            public int indexOffset;
+            public int indexCount;
+            public float time;
         }
 
         private GameObject m_BuildinItem;
@@ -104,19 +107,21 @@ public class VRRFeature : ScriptableRendererFeature
                 m_BuildinItem = GameObject.Find("Pikachu");
             }
 
+            #if UNITY_EDITOR
             if(m_BuildinItem)
             {
                 CommandBuffer pikaCmd = CommandBufferPool.Get("PikaCM");
                 for(int i = 0; i < m_BuildinRR.sharedMaterials.Length; i++)
                 {
                     Material subMat = m_BuildinRR.sharedMaterials[i];
-                    pikaCmd.DrawMesh((m_BuildinRR is SkinnedMeshRenderer) ? ((SkinnedMeshRenderer)m_BuildinRR).sharedMesh : m_BuildinMF.sharedMesh, m_BuildinRR.localToWorldMatrix, subMat, i, 0);
+                    Matrix4x4 trs = Matrix4x4.TRS(new Vector3(0,0,3), Quaternion.Euler(-90,0,0), Vector3.one);
+                    pikaCmd.DrawMesh((m_BuildinRR is SkinnedMeshRenderer) ? ((SkinnedMeshRenderer)m_BuildinRR).sharedMesh : m_BuildinMF.sharedMesh, trs, subMat, i, 0);
                 }
                 context.ExecuteCommandBuffer(pikaCmd);
                 pikaCmd.Clear();
                 CommandBufferPool.Release(pikaCmd);
             }
-            
+            #endif
 
             #if (!UNITY_EDITOR && UNITY_IOS)
             CommandBuffer cmd = CommandBufferPool.Get("FuckCMD");
@@ -152,21 +157,23 @@ public class VRRFeature : ScriptableRendererFeature
             {
                 Debug.Log("Draw Mix");
                 DirectGraphics.BeginVRRPassCMD(cmd, (int)EventID.event_BeginVRRPass, _beginPassArgs.AddrOfPinnedObject());
-                DirectGraphics.DrawMixSimpleTriangleCMD(cmd, (int)EventID.event_DrawMixSimpleTriangle);
+                //DirectGraphics.DrawMixSimpleTriangleCMD(cmd, (int)EventID.event_DrawMixSimpleTriangle);
 
                 Mesh targetMesh = (m_BuildinRR is SkinnedMeshRenderer) ? ((SkinnedMeshRenderer)(m_BuildinRR)).sharedMesh : m_BuildinMF.sharedMesh;
                 IntPtr indexBufferPtr = targetMesh.GetNativeIndexBufferPtr();
-                IntPtr vertexBufferPtr = targetMesh.GetNativeVertexBufferPtr(i);
-                
+                IntPtr vertexBufferPtr = targetMesh.GetNativeVertexBufferPtr(0);
+
                 for (int i = 0; i < m_BuildinRR.sharedMaterials.Length; i++)
                 {
                     Material subMat = m_BuildinRR.sharedMaterials[i];
                     IntPtr subTexBufferPtr = subMat.mainTexture.GetNativeTexturePtr();
 
-                    int subMeshIndexOffset = targetMesh.GetIndexStart(i);
-                    int subMeshIndexCount = targetMesh.GetIndexCount(i);
+                    int subMeshIndexOffset = (int)targetMesh.GetIndexStart(i);
+                    int subMeshIndexCount = (int)targetMesh.GetIndexCount(i);
+
+                    Matrix4x4 trs = Matrix4x4.TRS(new Vector3(0,0,3), Quaternion.Euler(-90,0,0), Vector3.one);
                     
-                    DrawUnLitMesh(cmd, vertexBufferPtr, indexBufferPtr, subTexBufferPtr, m_BuildinRR.localToWorldMatrix);
+                    DrawUnLitMesh(cmd, vertexBufferPtr, indexBufferPtr, subTexBufferPtr, subMeshIndexOffset, subMeshIndexCount, trs);
                 }
 
                 //cmd.DrawMesh(m_BuildinMF.sharedMesh, m_BuildinItem.transform.localToWorldMatrix, m_BuildinRR.sharedMaterial);
@@ -190,8 +197,9 @@ public class VRRFeature : ScriptableRendererFeature
 
         private float[] m_tmpLocalToWorldMatrixBuffer = new float[16];
         private GCHandle drawHandle;
-        void DrawUnLitMesh(CommandBuffer cmd, IntPtr pVertexBuffer, IntPtr pIndexBuffer, IntPtr pTextureBuffer, Matrix4x4 pLocalToWorldMatrix)
+        void DrawUnLitMesh(CommandBuffer cmd, IntPtr pVertexBuffer, IntPtr pIndexBuffer, IntPtr pTextureBuffer, int pIndexOffset, int pIndexCount, Matrix4x4 pLocalToWorldMatrix)
         {
+            //Matrix4x4 transposeMat = pLocalToWorldMatrix.transpose;
             for(int i = 0; i < 16; i++)
             {
                 m_tmpLocalToWorldMatrixBuffer[i] = pLocalToWorldMatrix[i];
@@ -204,7 +212,10 @@ public class VRRFeature : ScriptableRendererFeature
                         vertexBuffer = pVertexBuffer,
                         indexBuffer = pIndexBuffer,
                         textureBuffer = pTextureBuffer,
-                        localToWorld = GCHandle.Alloc(m_tmpLocalToWorldMatrixBuffer).AddrOfPinnedObject()
+                        localToWorld = GCHandle.Alloc(m_tmpLocalToWorldMatrixBuffer,GCHandleType.Pinned).AddrOfPinnedObject(),
+                        indexOffset = pIndexOffset,
+                        indexCount = pIndexCount,
+                        time = Time.timeSinceLevelLoad,
                     }, GCHandleType.Pinned);
             }
 
