@@ -142,13 +142,14 @@ public class VRRFeature : ScriptableRendererFeature
             #if (!UNITY_EDITOR && UNITY_IOS)
             CommandBuffer cmd = CommandBufferPool.Get("FuckCMD");
 
+            bool drawMesh = false;
             unsafe
             {
                 _beginPassArgs = GCHandle.Alloc(
                     new TriangleData
                     {
                         colorTex = FuckTex.colorBuffer.GetNativeRenderBufferPtr(),
-                        depthTex = FuckDepthTex.depthBuffer.GetNativeRenderBufferPtr(),
+                        depthTex =  drawMesh ? FuckDepthTex.depthBuffer.GetNativeRenderBufferPtr() : IntPtr.Zero,
                         w = FuckTex.width,
                         h = FuckTex.height,
                         t = Time.timeSinceLevelLoad,
@@ -170,7 +171,7 @@ public class VRRFeature : ScriptableRendererFeature
 
             Debug.Log("Before Call Event");
 
-            if (m_BuildinItem)
+            if (false)
             {
                 Debug.Log("Draw Mix");
                 DirectGraphics.BeginVRRPassCMD(cmd, (int)EventID.event_BeginVRRPass, _beginPassArgs.AddrOfPinnedObject());
@@ -196,18 +197,20 @@ public class VRRFeature : ScriptableRendererFeature
                     
                     DrawUnLitMesh(cmd, vertexBufferPtr, indexBufferPtr, uvBufferPtr, subTexBufferPtr, subMeshIndexOffset, subMeshIndexCount, mvp);
                 }
-
+                DirectGraphics.EndVRRPassCMD(cmd, (int)EventID.event_EndVRRPass);
                 //cmd.DrawMesh(m_BuildinMF.sharedMesh, m_BuildinItem.transform.localToWorldMatrix, m_BuildinRR.sharedMaterial);
                 context.ExecuteCommandBuffer(cmd);
                 cmd.Clear();
-                DirectGraphics.EndVRRPassCMD(cmd, (int)EventID.event_EndVRRPass);
+               
             }
             else
             {
                 Debug.Log("Draw Normal");
-                DirectGraphics.DrawSimpleTriangleCMD(cmd, (int)EventID.event_DrawSimpleTriangle, _beginPassArgs.AddrOfPinnedObject());
+                DirectGraphics.BeginVRRPassCMD(cmd, (int)EventID.event_BeginVRRPass, _beginPassArgs.AddrOfPinnedObject());
+                //DirectGraphics.DrawSimpleTriangleCMD(cmd, (int)EventID.event_DrawSimpleTriangle, _beginPassArgs.AddrOfPinnedObject());
             }
 
+           
             DirectGraphics.DrawVRRBlitCMD(cmd, (int)EventID.event_DoVRRPostPass, _blitPassArgs.AddrOfPinnedObject());
             context.ExecuteCommandBuffer(cmd);
             cmd.Clear();

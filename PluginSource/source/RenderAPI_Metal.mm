@@ -632,10 +632,15 @@ void RenderAPI_Metal::BeginVRRPass(void* targetTexture, void* depthStencilTextur
     
     id<MTLTexture> colorRT = m_MetalGraphics->TextureFromRenderBuffer((UnityRenderBuffer)targetTexture);
     
-    id<MTLTexture> depthRT = m_MetalGraphics->TextureFromRenderBuffer((UnityRenderBuffer)depthStencilTexture);
+    if(NULL != depthStencilTexture)
+    {
+        id<MTLTexture> depthRT = m_MetalGraphics->TextureFromRenderBuffer((UnityRenderBuffer)depthStencilTexture);
+        rpdesc.depthAttachment.texture = depthRT;
+    }
+   
     
     rpdesc.colorAttachments[0].texture = colorRT;
-    rpdesc.depthAttachment.texture = depthRT;
+   
     //rpdesc.stencilAttachment.texture = depthRT;
     
     id<MTLDevice> device = m_MetalGraphics->MetalDevice();
@@ -697,14 +702,14 @@ void RenderAPI_Metal::BeginVRRPass(void* targetTexture, void* depthStencilTextur
    
     id<MTLCommandBuffer> buffer = [m_CommandQueue commandBuffer];
     id<MTLRenderCommandEncoder> commandEncoder = [buffer renderCommandEncoderWithDescriptor:rpdesc];
-    g_VRRPassCMD = buffer;
-    g_VRRPassEncoder = commandEncoder;
+    //g_VRRPassCMD = buffer;
+    //g_VRRPassEncoder = commandEncoder;
     //DrawColoredTriangle(g_VRRPassEncoder, 0);
     //[g_VRRPassCMD endEncoding];
     //[buffer commit];
-    //DrawColoredTriangle(commandEncoder, t);
-    //[commandEncoder endEncoding];
-    //[buffer commit];
+    DrawColoredTriangle(commandEncoder, t);
+    [commandEncoder endEncoding];
+    [buffer commit];
 }
 
 void RenderAPI_Metal::EndVRRPass()
