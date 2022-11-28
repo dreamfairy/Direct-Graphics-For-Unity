@@ -163,6 +163,12 @@
 			isa = PBXProject;
 			attributes = {
 				LastUpgradeCheck = 0730;
+				TargetAttributes = {
+					8D57630D048677EA00EA77CD = {
+						DevelopmentTeam = 6395SU4ZB8;
+						ProvisioningStyle = Automatic;
+					};
+				};
 			};
 			buildConfigurationList = 1DEB911E08733D790010E9CD /* Build configuration list for PBXProject "RenderingPlugin" */;
 			compatibilityVersion = "Xcode 3.2";
@@ -212,8 +218,11 @@
 			buildSettings = {
 				ARCHS = "$(ARCHS_STANDARD_64_BIT)";
 				CLANG_ENABLE_OBJC_ARC = YES;
+				CODE_SIGN_IDENTITY = "Apple Development";
+				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				DEBUG_INFORMATION_FORMAT = dwarf;
+				DEVELOPMENT_TEAM = 6395SU4ZB8;
 				GCC_ENABLE_FIX_AND_CONTINUE = YES;
 				HEADER_SEARCH_PATHS = ../;
 				INFOPLIST_FILE = Info.plist;
@@ -221,6 +230,7 @@
 				MACOSX_DEPLOYMENT_TARGET = 10.15;
 				PRODUCT_BUNDLE_IDENTIFIER = "com.yourcompany.${PRODUCT_NAME:rfc1034Identifier}";
 				PRODUCT_NAME = RenderingPlugin;
+				PROVISIONING_PROFILE_SPECIFIER = "";
 				VALID_ARCHS = x86_64;
 				WRAPPER_EXTENSION = bundle;
 			};
@@ -231,14 +241,18 @@
 			buildSettings = {
 				ARCHS = "$(ARCHS_STANDARD_64_BIT)";
 				CLANG_ENABLE_OBJC_ARC = YES;
+				CODE_SIGN_IDENTITY = "Apple Development";
+				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				DEBUG_INFORMATION_FORMAT = dwarf;
+				DEVELOPMENT_TEAM = 6395SU4ZB8;
 				HEADER_SEARCH_PATHS = ../;
 				INFOPLIST_FILE = Info.plist;
 				INSTALL_PATH = "$(HOME)/Library/Bundles";
 				MACOSX_DEPLOYMENT_TARGET = 10.15;
 				PRODUCT_BUNDLE_IDENTIFIER = "com.yourcompany.${PRODUCT_NAME:rfc1034Identifier}";
 				PRODUCT_NAME = RenderingPlugin;
+				PROVISIONING_PROFILE_SPECIFIER = "";
 				VALID_ARCHS = x86_64;
 				WRAPPER_EXTENSION = bundle;
 			};

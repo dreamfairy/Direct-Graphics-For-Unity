@@ -32,9 +32,9 @@ public:
     virtual void* GetTexturePointer(int textureIndex);
     virtual void SetTextureColor(float red, float green, float blue, float alpha, void* targetTexture, float w, float h, float t);
     virtual void DrawMixTriangle();
-    virtual void BeginVRRPass(void* targetTexture, float w, float h, float t);
+    virtual void BeginVRRPass(void* targetTexture, void* depthStencilTexture, float w, float h, float t);
     virtual void EndVRRPass();
-    virtual void DrawMesh(void* vertexBuffer, void* indexBuffer, void* textureBuffer, void* localToWorld,int indexOffset, int indexCount, float t);
+    virtual void DrawMesh(void* vertexBuffer, void* indexBuffer,void* uvBuffer, void* textureBuffer, void* localToWorld,int indexOffset, int indexCount, float t);
 
 private:
     void CreateUnityVertexLayout();
@@ -132,11 +132,13 @@ static const char kMeshShaderSource[] =
 "struct Vertex\n"
 "{\n"
 "    float3 pos [[attribute(0)]];\n"
+"    float3 normal [[attribute(1)]];\n"
+"    float2 uv [[attribute(2)]];\n"
 "};\n"
 "struct VSOutput\n"
 "{\n"
 "    float4 pos [[position]];\n"
-"    half4  color;\n"
+"    float2 uv;\n"
 "};\n"
 "struct FSOutput\n"
 "{\n"
@@ -144,12 +146,15 @@ static const char kMeshShaderSource[] =
 "};\n"
 "vertex VSOutput vertexMain(Vertex input [[stage_in]], constant AppData& my_cb [[buffer(0)]])\n"
 "{\n"
-"    VSOutput out = { my_cb.worldMatrix * float4(input.pos.xyz, 1), (half4(1,0,0,1)) };\n"
+"    VSOutput out = { my_cb.worldMatrix * float4(input.pos.xyz, 1), input.uv };\n"
 "    return out;\n"
 "}\n"
-"fragment FSOutput fragmentMain(VSOutput input [[stage_in]])\n"
+"fragment FSOutput fragmentMain(VSOutput input [[stage_in]],\n"
+"       texture2d<float> PostprocessInput0 [[ texture(0) ]])\n"
 "{\n"
-"    FSOutput out = { input.color };\n"
+"    constexpr sampler readSampler(mag_filter::linear, min_filter::linear, address::mirrored_repeat, coord::normalized);\n"
+"    half4 col = half4(PostprocessInput0.sample(readSampler, input.uv));\n"
+"    FSOutput out = { col };\n"
 "    return out;\n"
 "}\n";
 
@@ -332,22 +337,26 @@ void RenderAPI_Metal::CreateUnityVertexLayout()
     //tangent
     vertexDesc.attributes[2].format            = MTLVertexFormatFloat4;
     vertexDesc.attributes[2].offset            = 6*sizeof(float);
-    vertexDesc.attributes[2].bufferIndex       = 1;
+    vertexDesc.attributes[2].bufferIndex       = 1;**/
+    
     //uv
-    vertexDesc.attributes[3].format            = MTLVertexFormatFloat2;
-    vertexDesc.attributes[3].offset            = 10*sizeof(float);
-    vertexDesc.attributes[3].bufferIndex       = 1;
-    **/
+    vertexDesc.attributes[2].format            = MTLVertexFormatHalf2;
+    vertexDesc.attributes[2].offset            = 0;
+    vertexDesc.attributes[2].bufferIndex       = 2;
     
     vertexDesc.layouts[1].stride              = 10*sizeof(float);
     vertexDesc.layouts[1].stepFunction        = MTLVertexStepFunctionPerVertex;
     vertexDesc.layouts[1].stepRate            = 1;
     
+    vertexDesc.layouts[2].stride              = 1*sizeof(float);
+    vertexDesc.layouts[2].stepFunction        = MTLVertexStepFunctionPerVertex;
+    vertexDesc.layouts[2].stepRate            = 1;
+    
     MTLRenderPipelineDescriptor* pipeDesc = [[MTLRenderPipelineDescriptorClass alloc] init];
     // Let's assume we're rendering into BGRA8Unorm...
     pipeDesc.colorAttachments[0].pixelFormat= MTLPixelFormatRGBA8Unorm;
 
-    pipeDesc.depthAttachmentPixelFormat        = MTLPixelFormatInvalid;
+    pipeDesc.depthAttachmentPixelFormat        = MTLPixelFormatDepth32Float;
     pipeDesc.stencilAttachmentPixelFormat    = MTLPixelFormatInvalid;
 
     pipeDesc.sampleCount = 1;
@@ -366,8 +375,8 @@ void RenderAPI_Metal::CreateUnityVertexLayout()
 
     // Depth/Stencil state
     MTLDepthStencilDescriptor* depthDesc = [[MTLDepthStencilDescriptorClass alloc] init];
-    depthDesc.depthCompareFunction = GetUsesReverseZ() ? MTLCompareFunctionGreaterEqual : MTLCompareFunctionLessEqual;
-    depthDesc.depthWriteEnabled = false;
+    depthDesc.depthCompareFunction = MTLCompareFunctionLessEqual;
+    depthDesc.depthWriteEnabled = true;
     m_MeshDepthStencil = [metalDevice newDepthStencilStateWithDescriptor:depthDesc];
     
     m_UsedTextureCount = 0;
@@ -375,7 +384,7 @@ void RenderAPI_Metal::CreateUnityVertexLayout()
 
 
 
-void RenderAPI_Metal::DrawMesh(void* vertexHandle, void* indexHandle, void* texturehandle, void* localToWorld, int indexOffset, int indexCount, float t)
+void RenderAPI_Metal::DrawMesh(void* vertexHandle, void* indexHandle, void* uvHandle, void* texturehandle, void* localToWorld, int indexOffset, int indexCount, float t)
 {
     //const int vbSize = triangleCount * 3 * kVertexSize;
     const int cbSize = 16 * sizeof(float);
@@ -392,12 +401,24 @@ void RenderAPI_Metal::DrawMesh(void* vertexHandle, void* indexHandle, void* text
         0,0,1,0,
         0,0,finalDepth,1,
     };
+    
+    float worldMatrix1[16] = {
+        1,0,0,0,
+        0,-1,0,0,
+        0,0,1,0,
+        0,0,finalDepth,1,
+    };
 
     //::memcpy(m_VertexBuffer.contents, verticesFloat3Byte4, vbSize);
-    ::memcpy(m_ConstantBuffer.contents, worldMatrix, cbSize);
+    ::memcpy(m_ConstantBuffer.contents, localToWorld, cbSize);
     id<MTLBuffer> vertexBuffer = (__bridge id<MTLBuffer>)(vertexHandle);
     id<MTLBuffer> indexBuffer = (__bridge id<MTLBuffer>)(indexHandle);
     id<MTLTexture> srvTexture = (__bridge id<MTLTexture>)texturehandle;
+    id<MTLBuffer> uvBuffer = (__bridge id<MTLBuffer>)uvHandle;
+    
+    //int uvBufferLen = [uvBuffer length];
+    //int uvBufferStride = uvBufferLen / 2848;
+    //NSLog(@("UV Stride %d"), uvBufferStride);
 
 #if UNITY_OSX
     //[m_VertexBuffer didModifyRange:NSMakeRange(0, vbSize)];
@@ -407,16 +428,17 @@ void RenderAPI_Metal::DrawMesh(void* vertexHandle, void* indexHandle, void* text
     id<MTLRenderCommandEncoder> cmd = g_VRRPassEncoder;
     // Setup rendering state
     [cmd setRenderPipelineState:m_MeshPipeline];
-    //[cmd setDepthStencilState:m_DepthStencil];
+    [cmd setDepthStencilState:m_MeshDepthStencil];
     [cmd setCullMode:MTLCullModeNone];
 
     // Bind buffers
-    [cmd setVertexBuffer:vertexBuffer offset:0 atIndex:1];
     [cmd setVertexBuffer:m_ConstantBuffer offset:0 atIndex:0];
-    //[cmd setFragmentBuffer:srvTexture offset:0 atIndex:0];
+    [cmd setVertexBuffer:vertexBuffer offset:0 atIndex:1];
+    [cmd setVertexBuffer:uvBuffer offset:0 atIndex:2];
+    [cmd setFragmentTexture:srvTexture atIndex:0];
 
     // Draw
-    [cmd drawIndexedPrimitives:MTLPrimitiveTypeTriangle indexCount:indexCount indexType:MTLIndexTypeUInt16 indexBuffer:indexBuffer indexBufferOffset:indexOffset];
+    [cmd drawIndexedPrimitives:MTLPrimitiveTypeTriangle indexCount:indexCount indexType:MTLIndexTypeUInt16 indexBuffer:indexBuffer indexBufferOffset:indexOffset*2];
 }
 
 void RenderAPI_Metal::CreateResources()
@@ -596,7 +618,7 @@ void* RenderAPI_Metal::GetTexturePointer(int textureIndex)
     return m_Textures[textureIndex];
 }
 
-void RenderAPI_Metal::BeginVRRPass(void* targetTexture, float w, float h, float t)
+void RenderAPI_Metal::BeginVRRPass(void* targetTexture, void* depthStencilTexture, float w, float h, float t)
 {
     if(w == 0 || h == 0){
         return;
@@ -610,7 +632,16 @@ void RenderAPI_Metal::BeginVRRPass(void* targetTexture, float w, float h, float 
     
     id<MTLTexture> colorRT = m_MetalGraphics->TextureFromRenderBuffer((UnityRenderBuffer)targetTexture);
     
+    if(NULL != depthStencilTexture)
+    {
+        id<MTLTexture> depthRT = m_MetalGraphics->TextureFromRenderBuffer((UnityRenderBuffer)depthStencilTexture);
+        rpdesc.depthAttachment.texture = depthRT;
+    }
+   
+    
     rpdesc.colorAttachments[0].texture = colorRT;
+   
+    //rpdesc.stencilAttachment.texture = depthRT;
     
     id<MTLDevice> device = m_MetalGraphics->MetalDevice();
     
@@ -671,14 +702,14 @@ void RenderAPI_Metal::BeginVRRPass(void* targetTexture, float w, float h, float 
    
     id<MTLCommandBuffer> buffer = [m_CommandQueue commandBuffer];
     id<MTLRenderCommandEncoder> commandEncoder = [buffer renderCommandEncoderWithDescriptor:rpdesc];
-    g_VRRPassCMD = buffer;
-    g_VRRPassEncoder = commandEncoder;
+    //g_VRRPassCMD = buffer;
+    //g_VRRPassEncoder = commandEncoder;
     //DrawColoredTriangle(g_VRRPassEncoder, 0);
     //[g_VRRPassCMD endEncoding];
     //[buffer commit];
-    //DrawColoredTriangle(commandEncoder, t);
-    //[commandEncoder endEncoding];
-    //[buffer commit];
+    DrawColoredTriangle(commandEncoder, t);
+    [commandEncoder endEncoding];
+    [buffer commit];
 }
 
 void RenderAPI_Metal::EndVRRPass()
